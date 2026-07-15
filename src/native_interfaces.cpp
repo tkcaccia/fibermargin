@@ -318,7 +318,7 @@ void train_predict_block(const NumericMatrix& train_x,
 
 } // namespace
 
-extern "C" SEXP _SpatialGraphRefine_refine_spatial_graph_cpp(SEXP xy_s,
+extern "C" SEXP _marginSVM_refine_spatial_graph_cpp(SEXP xy_s,
                                                            SEXP labels_s,
                                                            SEXP samples_s,
                                                            SEXP neighbors_s,
@@ -450,7 +450,7 @@ extern "C" SEXP _SpatialGraphRefine_refine_spatial_graph_cpp(SEXP xy_s,
   END_RCPP
 }
 
-extern "C" SEXP _SpatialGraphRefine_direct_refiner_cpp(SEXP xy_s,
+extern "C" SEXP _marginSVM_direct_refiner_cpp(SEXP xy_s,
                                                         SEXP labels_s,
                                                         SEXP samples_s,
                                                         SEXP method_s,
@@ -526,177 +526,17 @@ extern "C" SEXP _SpatialGraphRefine_direct_refiner_cpp(SEXP xy_s,
   END_RCPP
 }
 
-extern "C" SEXP _SpatialGraphRefine_refine_spatial_svm_cpp(SEXP xy_s,
-                                                         SEXP labels_s,
-                                                         SEXP samples_s,
-                                                         SEXP newdata_s,
-                                                         SEXP newsamples_s,
-                                                         SEXP tiles_s,
-                                                         SEXP backend_s,
-                                                         SEXP gamma_s,
-                                                         SEXP n_features_s,
-                                                         SEXP epochs_s,
-                                                         SEXP lambda_s,
-                                                         SEXP learning_rate_s,
-                                                         SEXP seed_s,
-                                                         SEXP verbose_s) {
-  BEGIN_RCPP
-  NumericMatrix xy(xy_s);
-  IntegerVector labels(labels_s);
-  IntegerVector samples(samples_s);
-  NumericMatrix newdata(newdata_s);
-  IntegerVector newsamples(newsamples_s);
-  IntegerVector tiles_r(tiles_s);
-
-  const int backend = as<int>(backend_s);
-  const double gamma = as<double>(gamma_s);
-  const int n_features = std::max(4, as<int>(n_features_s));
-  const int epochs = std::max(1, as<int>(epochs_s));
-  const double lambda = std::max(0.0, as<double>(lambda_s));
-  const double learning_rate = std::max(1e-8, as<double>(learning_rate_s));
-  const std::uint32_t seed = static_cast<std::uint32_t>(as<int>(seed_s));
-  const bool verbose = as<bool>(verbose_s);
-
-  if (backend == 2) {
-#ifndef SPATIAL_SVM_REFINE_USE_CUDA
-    Rcpp::warning("CUDA backend was requested but this package was not compiled with CUDA support; using CPU.");
-#endif
-  }
-
-  const bool predict_new = newdata.nrow() > 0;
-  const int n_train = xy.nrow();
-  const int n_pred = predict_new ? newdata.nrow() : n_train;
-  const int dims = xy.ncol();
-  IntegerVector output(n_pred, NA_INTEGER);
-
-  std::vector<int> y(n_train);
-  std::vector<int> sample_codes(n_train);
-  std::vector<int> newsample_codes(predict_new ? n_pred : 0);
-  for (int i = 0; i < n_train; ++i) {
-    y[i] = labels[i];
-    sample_codes[i] = samples[i];
-  }
-  const int n_classes = *std::max_element(y.begin(), y.end());
-  NumericMatrix scores(n_pred, n_classes);
-  std::fill(scores.begin(), scores.end(), R_NegInf);
-  for (int i = 0; i < n_pred && predict_new; ++i) {
-    newsample_codes[i] = newsamples[i];
-  }
-
-  std::vector<int> sample_levels(sample_codes.begin(), sample_codes.end());
-  std::sort(sample_levels.begin(), sample_levels.end());
-  sample_levels.erase(std::unique(sample_levels.begin(), sample_levels.end()), sample_levels.end());
-
-  std::vector<int> tiles;
-  tiles.reserve(tiles_r.size());
-  long long n_tiles = 1;
-  for (int value : tiles_r) {
-    tiles.push_back(value);
-    n_tiles *= value;
-    if (n_tiles > std::numeric_limits<int>::max()) {
-      stop("Product of `tiles` is too large.");
-    }
-  }
-
-  for (std::size_t s_idx = 0; s_idx < sample_levels.size(); ++s_idx) {
-    Rcpp::checkUserInterrupt();
-    const int sample = sample_levels[s_idx];
-    if (verbose) Rcout << "sample " << sample << "\n";
-
-    std::vector<int> train_rows;
-    std::vector<int> pred_rows;
-    for (int i = 0; i < n_train; ++i) {
-      if (sample_codes[i] == sample) train_rows.push_back(i);
-    }
-    if (predict_new) {
-      for (int i = 0; i < n_pred; ++i) {
-        if (newsample_codes[i] == sample) pred_rows.push_back(i);
-      }
-    } else {
-      pred_rows = train_rows;
-    }
-
-    if (train_rows.empty() || pred_rows.empty()) continue;
-
-    if (tiles.empty()) {
-      train_predict_block(
-        xy,
-        predict_new ? newdata : xy,
-        y,
-        train_rows,
-        pred_rows,
-        output,
-        scores,
-        gamma,
-        n_features,
-        epochs,
-        lambda,
-        learning_rate,
-        seed + static_cast<std::uint32_t>(7919 * (s_idx + 1))
-      );
-      continue;
-    }
-
-    std::vector<double> mins(dims, std::numeric_limits<double>::infinity());
-    std::vector<double> maxs(dims, -std::numeric_limits<double>::infinity());
-    for (int row : train_rows) {
-      for (int d = 0; d < dims; ++d) {
-        mins[d] = std::min(mins[d], xy(row, d));
-        maxs[d] = std::max(maxs[d], xy(row, d));
-      }
-    }
-
-    std::vector<std::vector<int> > train_by_tile(static_cast<std::size_t>(n_tiles));
-    std::vector<std::vector<int> > pred_by_tile(static_cast<std::size_t>(n_tiles));
-
-    for (int row : train_rows) {
-      const int id = tile_id(xy, row, tiles, mins, maxs);
-      if (id >= 0) train_by_tile[id].push_back(row);
-    }
-
-    const NumericMatrix& pred_matrix = predict_new ? newdata : xy;
-    for (int row : pred_rows) {
-      const int id = tile_id(pred_matrix, row, tiles, mins, maxs);
-      if (id >= 0) pred_by_tile[id].push_back(row);
-    }
-
-    for (int tile = 0; tile < n_tiles; ++tile) {
-      if (train_by_tile[tile].empty() || pred_by_tile[tile].empty()) continue;
-      if (verbose) Rcout << "  tile " << (tile + 1) << " / " << n_tiles << "\n";
-      train_predict_block(
-        xy,
-        pred_matrix,
-        y,
-        train_by_tile[tile],
-        pred_by_tile[tile],
-        output,
-        scores,
-        gamma,
-        n_features,
-        epochs,
-        lambda,
-        learning_rate,
-        seed + static_cast<std::uint32_t>(104729 * (s_idx + 1) + tile)
-      );
-    }
-  }
-
-  return List::create(_["labels"] = output, _["scores"] = scores);
-  END_RCPP
-}
-
-extern "C" SEXP _SpatialGraphRefine_structured_spatial_svm_cpp(
+extern "C" SEXP _marginSVM_structured_spatial_svm_cpp(
   SEXP xy_s, SEXP labels_s, SEXP samples_s, SEXP control_s, SEXP verbose_s);
 
 static const R_CallMethodDef CallEntries[] = {
-  {"_SpatialGraphRefine_refine_spatial_graph_cpp", (DL_FUNC) &_SpatialGraphRefine_refine_spatial_graph_cpp, 10},
-  {"_SpatialGraphRefine_direct_refiner_cpp", (DL_FUNC) &_SpatialGraphRefine_direct_refiner_cpp, 5},
-  {"_SpatialGraphRefine_refine_spatial_svm_cpp", (DL_FUNC) &_SpatialGraphRefine_refine_spatial_svm_cpp, 14},
-  {"_SpatialGraphRefine_structured_spatial_svm_cpp", (DL_FUNC) &_SpatialGraphRefine_structured_spatial_svm_cpp, 5},
+  {"_marginSVM_refine_spatial_graph_cpp", (DL_FUNC) &_marginSVM_refine_spatial_graph_cpp, 10},
+  {"_marginSVM_direct_refiner_cpp", (DL_FUNC) &_marginSVM_direct_refiner_cpp, 5},
+  {"_marginSVM_structured_spatial_svm_cpp", (DL_FUNC) &_marginSVM_structured_spatial_svm_cpp, 5},
   {NULL, NULL, 0}
 };
 
-extern "C" void R_init_SpatialGraphRefine(DllInfo* dll) {
+extern "C" void R_init_marginSVM(DllInfo* dll) {
   R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
   R_useDynamicSymbols(dll, FALSE);
 }

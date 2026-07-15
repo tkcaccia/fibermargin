@@ -10,7 +10,6 @@
 #include <queue>
 #include <random>
 #include <thread>
-#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -101,95 +100,6 @@ class Tree {
     if (delta * delta <= limit) search(far_child, target, k, heap);
   }
 };
-
-bool invert_small_matrix(const std::vector<double>& matrix, int dims,
-                         std::vector<double>& inverse) {
-  std::vector<double> augmented(static_cast<std::size_t>(dims) * 2 * dims, 0.0);
-  for (int i = 0; i < dims; ++i) {
-    for (int j = 0; j < dims; ++j) augmented[i * 2 * dims + j] = matrix[i * dims + j];
-    augmented[i * 2 * dims + dims + i] = 1.0;
-  }
-  for (int column = 0; column < dims; ++column) {
-    int pivot = column;
-    for (int row = column + 1; row < dims; ++row) {
-      if (std::abs(augmented[row * 2 * dims + column]) >
-          std::abs(augmented[pivot * 2 * dims + column])) pivot = row;
-    }
-    if (std::abs(augmented[pivot * 2 * dims + column]) < 1e-12) return false;
-    if (pivot != column) {
-      for (int j = 0; j < 2 * dims; ++j) {
-        std::swap(augmented[column * 2 * dims + j], augmented[pivot * 2 * dims + j]);
-      }
-    }
-    const double scale = augmented[column * 2 * dims + column];
-    for (int j = 0; j < 2 * dims; ++j) augmented[column * 2 * dims + j] /= scale;
-    for (int row = 0; row < dims; ++row) {
-      if (row == column) continue;
-      const double multiple = augmented[row * 2 * dims + column];
-      for (int j = 0; j < 2 * dims; ++j) {
-        augmented[row * 2 * dims + j] -= multiple * augmented[column * 2 * dims + j];
-      }
-    }
-  }
-  inverse.resize(dims * dims);
-  for (int i = 0; i < dims; ++i) {
-    for (int j = 0; j < dims; ++j) inverse[i * dims + j] = augmented[i * 2 * dims + dims + j];
-  }
-  return true;
-}
-
-void anisotropic_query(const std::vector<double>& x, int n, int dims, int target,
-                       const std::vector<int>& candidates,
-                       const std::vector<double>& euclidean,
-                       int requested, double anisotropy,
-                       std::vector<int>& output,
-                       std::vector<double>& distance) {
-  const int covariance_k = std::min(24, static_cast<int>(candidates.size()));
-  std::vector<double> covariance(dims * dims, 0.0);
-  for (int index = 0; index < covariance_k; ++index) {
-    const int row = candidates[index];
-    for (int a = 0; a < dims; ++a) {
-      const double da = x[row + n * a] - x[target + n * a];
-      for (int b = 0; b < dims; ++b) {
-        covariance[a * dims + b] += da * (x[row + n * b] - x[target + n * b]);
-      }
-    }
-  }
-  double trace = 0.0;
-  for (int d = 0; d < dims; ++d) trace += covariance[d * dims + d];
-  const double ridge = std::max(trace / std::max(1, covariance_k * dims) * 0.12, 1e-12);
-  for (double& value : covariance) value /= std::max(1, covariance_k);
-  for (int d = 0; d < dims; ++d) covariance[d * dims + d] += ridge;
-  std::vector<double> inverse;
-  if (!invert_small_matrix(covariance, dims, inverse)) {
-    output.assign(candidates.begin(), candidates.begin() + std::min(requested, (int)candidates.size()));
-    distance.assign(euclidean.begin(), euclidean.begin() + output.size());
-    return;
-  }
-  const double euclidean_scale = std::max(euclidean[std::min(covariance_k - 1,
-    static_cast<int>(euclidean.size()) - 1)], 1e-12);
-  std::vector<std::pair<double, int> > ranked;
-  ranked.reserve(candidates.size());
-  for (std::size_t index = 0; index < candidates.size(); ++index) {
-    std::vector<double> delta(dims);
-    for (int d = 0; d < dims; ++d) delta[d] = x[candidates[index] + n * d] - x[target + n * d];
-    double mahalanobis = 0.0;
-    for (int a = 0; a < dims; ++a) {
-      for (int b = 0; b < dims; ++b) mahalanobis += delta[a] * inverse[a * dims + b] * delta[b];
-    }
-    const double mixed = (1.0 - anisotropy) * euclidean[index] / euclidean_scale +
-      anisotropy * mahalanobis / std::max(1.0, static_cast<double>(dims));
-    ranked.push_back({mixed, candidates[index]});
-  }
-  const int keep = std::min(requested, static_cast<int>(ranked.size()));
-  std::partial_sort(ranked.begin(), ranked.begin() + keep, ranked.end());
-  output.resize(keep);
-  distance.resize(keep);
-  for (int i = 0; i < keep; ++i) {
-    output[i] = ranked[i].second;
-    distance[i] = ranked[i].first;
-  }
-}
 
 struct Edge {
   int a;
@@ -432,7 +342,6 @@ ModelResult fit_tile(const Tile& tile, const std::vector<double>& x, int n, int 
                      int global_classes, int requested_landmarks, double gamma,
                      int epochs, double learning_rate, double lambda, double ramp,
                      bool cross_fitting,
-                     bool pairwise_specialists, int pairwise_max,
                      std::uint32_t seed) {
   std::mt19937 rng(seed);
   const std::vector<int> landmark_rows = select_landmarks(
@@ -572,73 +481,6 @@ ModelResult fit_tile(const Tile& tile, const std::vector<double>& x, int n, int 
     }
   }
 
-  // Boundary specialists revisit only ambiguous locally plausible class pairs.
-  if (pairwise_specialists && classes > 1 && pairwise_max > 0) {
-    std::unordered_map<std::uint64_t, int> pair_count;
-    for (int i = 0; i < train_n; ++i) {
-      int first = -1, second = -1;
-      double first_p = -1.0, second_p = -1.0;
-      for (int c = 0; c < classes; ++c) {
-        const double value = probability[static_cast<std::size_t>(i) * global_classes + class_codes[c] - 1];
-        if (value > first_p) {
-          second_p = first_p; second = first; first_p = value; first = c;
-        } else if (value > second_p) {
-          second_p = value; second = c;
-        }
-      }
-      if (second < 0 || first_p - second_p > 0.35) continue;
-      const int a = std::min(first, second), b = std::max(first, second);
-      ++pair_count[(static_cast<std::uint64_t>(a) << 32) | static_cast<std::uint32_t>(b)];
-    }
-    std::vector<std::pair<int, std::uint64_t> > ranked_pairs;
-    for (const auto& item : pair_count) if (item.second >= 12) ranked_pairs.push_back({item.second, item.first});
-    std::sort(ranked_pairs.begin(), ranked_pairs.end(),
-      [](const std::pair<int, std::uint64_t>& a, const std::pair<int, std::uint64_t>& b) {
-        return a.first > b.first;
-      });
-    if (static_cast<int>(ranked_pairs.size()) > pairwise_max) ranked_pairs.resize(pairwise_max);
-    for (const auto& selected : ranked_pairs) {
-      const int class_a = static_cast<int>(selected.second >> 32);
-      const int class_b = static_cast<int>(selected.second & 0xffffffffU);
-      std::vector<double> binary_weights(static_cast<std::size_t>(folds) * stride, 0.0);
-      std::uint64_t binary_iteration = 0;
-      for (int epoch = 0; epoch < std::max(4, epochs / 2); ++epoch) {
-        std::shuffle(order.begin(), order.end(), rng);
-        for (int position : order) {
-          const int observed = class_index[labels[tile.halo[position]]];
-          if (observed != class_a && observed != class_b) continue;
-          const int model = folds == 1 ? 0 : 1 - fold[position];
-          double* binary = &binary_weights[static_cast<std::size_t>(model) * stride];
-          const double* feature = &phi[static_cast<std::size_t>(position) * m];
-          const double sign = observed == class_a ? 1.0 : -1.0;
-          double score = binary[m];
-          for (int f = 0; f < m; ++f) score += binary[f] * feature[f];
-          const double loss = 1.0 - sign * score;
-          if (loss <= 0 || (epoch >= 2 && loss >= ramp)) continue;
-          const double eta = learning_rate /
-            std::sqrt(1.0 + static_cast<double>(binary_iteration++) / std::max(1, train_n));
-          const double shrink = std::max(0.0, 1.0 - eta * lambda);
-          for (int f = 0; f < m; ++f) binary[f] = shrink * binary[f] + eta * sign * feature[f];
-          binary[m] += eta * sign;
-        }
-      }
-      for (int i = 0; i < train_n; ++i) {
-        double& pa = probability[static_cast<std::size_t>(i) * global_classes + class_codes[class_a] - 1];
-        double& pb = probability[static_cast<std::size_t>(i) * global_classes + class_codes[class_b] - 1];
-        const double pair_mass = pa + pb;
-        if (pair_mass <= 1e-12 || std::abs(pa - pb) > 0.35) continue;
-        const double* binary = &binary_weights[static_cast<std::size_t>(fold[i]) * stride];
-        const double* feature = &phi[static_cast<std::size_t>(i) * m];
-        double score = binary[m];
-        for (int f = 0; f < m; ++f) score += binary[f] * feature[f];
-        const double specialist = 1.0 / (1.0 + std::exp(-std::max(-20.0, std::min(20.0, score))));
-        const double revised = 0.70 * pa / pair_mass + 0.30 * specialist;
-        pa = pair_mass * revised;
-        pb = pair_mass * (1.0 - revised);
-      }
-    }
-  }
-
   std::vector<double> taper(train_n, 1.0);
   for (int i = 0; i < train_n; ++i) {
     double product = 1.0;
@@ -651,111 +493,6 @@ ModelResult fit_tile(const Tile& tile, const std::vector<double>& x, int n, int 
     taper[i] = std::pow(product, 1.0 / dims);
   }
   return {tile.halo, probability, taper, classes, m};
-}
-
-std::vector<double> two_component_trust(const std::vector<double>& evidence,
-                                        const std::vector<int>& rows) {
-  std::vector<double> posterior(rows.size(), 0.5);
-  if (rows.size() < 8) return posterior;
-  std::vector<double> sorted;
-  sorted.reserve(rows.size());
-  for (int row : rows) sorted.push_back(evidence[row]);
-  std::sort(sorted.begin(), sorted.end());
-  double mean0 = sorted[sorted.size() / 4];
-  double mean1 = sorted[(3 * sorted.size()) / 4];
-  double variance0 = 0.025;
-  double variance1 = 0.025;
-  double mixture = 0.5;
-  for (int iteration = 0; iteration < 30; ++iteration) {
-    double weight0 = 0.0;
-    double weight1 = 0.0;
-    double sum0 = 0.0;
-    double sum1 = 0.0;
-    for (std::size_t i = 0; i < rows.size(); ++i) {
-      const double value = evidence[rows[i]];
-      const double density0 = (1.0 - mixture) / std::sqrt(variance0) *
-        std::exp(-0.5 * (value - mean0) * (value - mean0) / variance0);
-      const double density1 = mixture / std::sqrt(variance1) *
-        std::exp(-0.5 * (value - mean1) * (value - mean1) / variance1);
-      posterior[i] = density1 / std::max(density0 + density1, 1e-15);
-      weight0 += 1.0 - posterior[i];
-      weight1 += posterior[i];
-      sum0 += (1.0 - posterior[i]) * value;
-      sum1 += posterior[i] * value;
-    }
-    mean0 = sum0 / std::max(weight0, 1e-8);
-    mean1 = sum1 / std::max(weight1, 1e-8);
-    variance0 = 0.0;
-    variance1 = 0.0;
-    for (std::size_t i = 0; i < rows.size(); ++i) {
-      const double value = evidence[rows[i]];
-      variance0 += (1.0 - posterior[i]) * (value - mean0) * (value - mean0);
-      variance1 += posterior[i] * (value - mean1) * (value - mean1);
-    }
-    variance0 = std::max(variance0 / std::max(weight0, 1e-8), 1e-4);
-    variance1 = std::max(variance1 / std::max(weight1, 1e-8), 1e-4);
-    mixture = std::min(0.98, std::max(0.02, weight1 / rows.size()));
-  }
-  if (mean1 < mean0) for (double& value : posterior) value = 1.0 - value;
-  return posterior;
-}
-
-struct DisjointSet {
-  std::vector<int> parent;
-  explicit DisjointSet(int n) : parent(n) { std::iota(parent.begin(), parent.end(), 0); }
-  int find(int value) {
-    while (parent[value] != value) {
-      parent[value] = parent[parent[value]];
-      value = parent[value];
-    }
-    return value;
-  }
-  void unite(int a, int b) {
-    a = find(a);
-    b = find(b);
-    if (a != b) parent[b] = a;
-  }
-};
-
-std::vector<char> protect_rare_components(const std::vector<int>& labels,
-                                          const std::vector<int>& samples,
-                                          const std::vector<std::vector<int> >& neighbors,
-                                          const std::vector<double>& trust,
-                                          const std::vector<double>& stability,
-                                          const std::vector<double>& tile_disagreement,
-                                          int classes, int graph_k) {
-  const int n = labels.size();
-  DisjointSet components(n);
-  for (int i = 0; i < n; ++i) {
-    const int limit = std::min(graph_k, static_cast<int>(neighbors[i].size()));
-    for (int j = 0; j < limit; ++j) {
-      const int other = neighbors[i][j];
-      if (samples[i] == samples[other] && labels[i] == labels[other]) components.unite(i, other);
-    }
-  }
-  std::vector<int> class_count(classes, 0);
-  for (int label : labels) ++class_count[label - 1];
-  const int maximum = *std::max_element(class_count.begin(), class_count.end());
-  struct Summary { int count = 0; double trust = 0; double stability = 0; double agreement = 0; };
-  std::unordered_map<int, Summary> summaries;
-  for (int i = 0; i < n; ++i) {
-    Summary& summary = summaries[components.find(i)];
-    ++summary.count;
-    summary.trust += trust[i];
-    summary.stability += stability[i];
-    summary.agreement += 1.0 - tile_disagreement[i];
-  }
-  std::vector<char> protect(n, 0);
-  for (int i = 0; i < n; ++i) {
-    const Summary& summary = summaries[components.find(i)];
-    const double average_trust = summary.trust / summary.count;
-    const double average_stability = summary.stability / summary.count;
-    const double average_agreement = summary.agreement / summary.count;
-    const bool rare = static_cast<double>(class_count[labels[i] - 1]) / std::max(1, maximum) < 0.12;
-    protect[i] = rare && summary.count >= 4 && average_trust > 0.72 &&
-      average_stability > 0.75 && average_agreement > 0.75;
-  }
-  return protect;
 }
 
 void project_simplex(double* values, int classes) {
@@ -781,9 +518,7 @@ std::vector<int> decode_tv(const std::vector<double>& probability,
                            const std::vector<std::vector<double> >& distances,
                            int classes, double retention, double tv_strength,
                            double probability_floor, double coherence,
-                           int iterations, int graph_k, bool experimental_v2,
-                           const std::vector<double>& trust,
-                           const std::vector<char>& protected_component,
+                           int iterations, int graph_k,
                            std::vector<double>& final_probability) {
   const int n = labels.size();
   std::vector<int> class_count(classes, 0);
@@ -803,12 +538,9 @@ std::vector<int> decode_tv(const std::vector<double>& probability,
     const double rare = std::min(2.5, std::sqrt(static_cast<double>(maximum_count) /
       std::max(1, class_count[labels[i] - 1])));
     const double coherent = std::max(0.0, (local_support[i] - 0.65) / 0.35);
-    const double base_keep = retention *
+    const double keep = retention *
       (0.25 + local_support[i] * local_support[i] * rare) +
       coherence * coherent * coherent;
-    const double keep = experimental_v2
-      ? base_keep + (protected_component[i] ? retention : 0.0)
-      : base_keep;
     for (int c = 0; c < classes; ++c) {
       const std::size_t index = static_cast<std::size_t>(i) * classes + c;
       unary[index] = candidate[index]
@@ -890,7 +622,7 @@ std::vector<int> decode_tv(const std::vector<double>& probability,
 
 }  // namespace structured_svm
 
-extern "C" SEXP _SpatialGraphRefine_structured_spatial_svm_cpp(SEXP xy_s,
+extern "C" SEXP _marginSVM_structured_spatial_svm_cpp(SEXP xy_s,
                                                                 SEXP labels_s,
                                                                 SEXP samples_s,
                                                                 SEXP control_s,
@@ -922,13 +654,6 @@ extern "C" SEXP _SpatialGraphRefine_structured_spatial_svm_cpp(SEXP xy_s,
   const bool topology_abstention = as<double>(control["topology_abstention"]) > 0.5;
   const bool adaptive_tiles = as<double>(control["adaptive_tiles"]) > 0.5;
   const bool cross_fitting = as<double>(control["cross_fitting"]) > 0.5;
-  const bool experimental_v2 = as<double>(control["experimental_v2"]) > 0.5;
-  const int trust_neighbors = as<int>(control["trust_neighbors"]);
-  const double anisotropy = as<double>(control["anisotropy"]);
-  const bool pairwise_specialists = as<double>(control["pairwise_specialists"]) > 0.5;
-  const int pairwise_max = as<int>(control["pairwise_max"]);
-  const double change_threshold = as<double>(control["change_threshold"]);
-  const double unresolved_threshold = as<double>(control["unresolved_threshold"]);
   const int tv_iterations = as<int>(control["tv_iterations"]);
   const int workers_requested = as<int>(control["workers"]);
   const std::uint32_t seed = static_cast<std::uint32_t>(as<int>(control["seed"]));
@@ -937,21 +662,9 @@ extern "C" SEXP _SpatialGraphRefine_structured_spatial_svm_cpp(SEXP xy_s,
   std::vector<int> labels(labels_r.begin(), labels_r.end());
   std::vector<int> samples(samples_r.begin(), samples_r.end());
   std::vector<double> support(n, 1.0);
-  std::vector<double> support6;
-  std::vector<double> support24;
-  std::vector<double> support48;
-  if (experimental_v2) {
-    support6.assign(n, 1.0);
-    support24.assign(n, 1.0);
-    support48.assign(n, 1.0);
-  }
   std::vector<std::vector<int> > neighbors(n);
   std::vector<std::vector<double> > distances(n);
   std::vector<double> blended(static_cast<std::size_t>(n) * classes, 0.0);
-  std::vector<double> blended_square;
-  if (experimental_v2) {
-    blended_square.assign(static_cast<std::size_t>(n) * classes, 0.0);
-  }
   std::vector<double> total_weight(n, 0.0);
   int tile_count = 0;
 
@@ -965,32 +678,13 @@ extern "C" SEXP _SpatialGraphRefine_structured_spatial_svm_cpp(SEXP xy_s,
     for (int i = 0; i < n; ++i) if (samples[i] == sample) rows.push_back(i);
     if (rows.size() < 2) continue;
     structured_svm::Tree tree(x, n, dims, rows);
-    const int k = std::min(experimental_v2 ? trust_neighbors : neighbors_k,
-                           static_cast<int>(rows.size()) - 1);
+    const int k = std::min(neighbors_k, static_cast<int>(rows.size()) - 1);
     for (int row : rows) {
-      if (experimental_v2) {
-        std::vector<int> candidates;
-        std::vector<double> candidate_distance;
-        const int candidate_k = std::min(std::max(96, 2 * trust_neighbors),
-                                         static_cast<int>(rows.size()) - 1);
-        tree.query(row, candidate_k, candidates, candidate_distance);
-        structured_svm::anisotropic_query(x, n, dims, row, candidates, candidate_distance,
-                                          k, anisotropy, neighbors[row], distances[row]);
-      } else {
-        tree.query(row, k, neighbors[row], distances[row]);
-      }
-      auto support_at = [&](int requested) {
-        const int limit = std::min(requested, static_cast<int>(neighbors[row].size()));
-        int same = 0;
-        for (int j = 0; j < limit; ++j) same += labels[neighbors[row][j]] == labels[row];
-        return limit > 0 ? static_cast<double>(same) / limit : 1.0;
-      };
-      support[row] = support_at(neighbors_k);
-      if (experimental_v2) {
-        support6[row] = support_at(6);
-        support24[row] = support_at(24);
-        support48[row] = support_at(48);
-      }
+      tree.query(row, k, neighbors[row], distances[row]);
+      int same = 0;
+      for (int other : neighbors[row]) same += labels[other] == labels[row];
+      support[row] = neighbors[row].empty()
+        ? 1.0 : static_cast<double>(same) / neighbors[row].size();
     }
 
     std::vector<double> low(dims, std::numeric_limits<double>::infinity());
@@ -1024,7 +718,6 @@ extern "C" SEXP _SpatialGraphRefine_structured_spatial_svm_cpp(SEXP xy_s,
         results[index] = structured_svm::fit_tile(
           tiles[index], x, n, dims, labels, support, classes, landmarks, gamma,
           epochs, learning_rate, lambda, ramp, cross_fitting,
-          experimental_v2 && pairwise_specialists, pairwise_max,
           seed + 104729U * (first_tile + index + 1));
       }
     };
@@ -1050,10 +743,6 @@ extern "C" SEXP _SpatialGraphRefine_structured_spatial_svm_cpp(SEXP xy_s,
           const double value = result.probabilities[i * classes + c];
           blended[static_cast<std::size_t>(row) * classes + c] +=
             weight * value;
-          if (experimental_v2) {
-            blended_square[static_cast<std::size_t>(row) * classes + c] +=
-              weight * value * value;
-          }
         }
       }
       ++tile_count;
@@ -1067,82 +756,7 @@ extern "C" SEXP _SpatialGraphRefine_structured_spatial_svm_cpp(SEXP xy_s,
     }
     for (int c = 0; c < classes; ++c) {
       blended[static_cast<std::size_t>(i) * classes + c] /= total_weight[i];
-      if (experimental_v2) {
-        blended_square[static_cast<std::size_t>(i) * classes + c] /= total_weight[i];
-      }
     }
-  }
-
-  std::vector<double> tile_disagreement(n, 0.0);
-  std::vector<double> stability(n, 1.0);
-  std::vector<double> trust(n, 0.5);
-  std::vector<double> sample_mean_trust(n, 0.5);
-  std::vector<char> protected_component(n, 0);
-  if (experimental_v2) {
-    std::vector<double> evidence(n, 0.0);
-    for (int i = 0; i < n; ++i) {
-      double variance = 0.0;
-      for (int c = 0; c < classes; ++c) {
-        const std::size_t index = static_cast<std::size_t>(i) * classes + c;
-        variance += std::max(0.0, blended_square[index] - blended[index] * blended[index]);
-      }
-      tile_disagreement[i] = std::min(1.0, std::sqrt(std::max(0.0, variance)));
-      const int limit = std::min(6, static_cast<int>(neighbors[i].size()));
-      double perturbation = 0.0;
-      for (int j = 0; j < limit; ++j) {
-        const int other = neighbors[i][j];
-        for (int c = 0; c < classes; ++c) {
-          perturbation += 0.5 * std::abs(
-            blended[static_cast<std::size_t>(i) * classes + c] -
-            blended[static_cast<std::size_t>(other) * classes + c]);
-        }
-      }
-      stability[i] = limit > 0 ? std::max(0.0, 1.0 - perturbation / limit) : 1.0;
-      const double svm_label = blended[static_cast<std::size_t>(i) * classes + labels[i] - 1];
-      evidence[i] = 0.28 * svm_label + 0.18 * support6[i] + 0.12 * support[i] +
-        0.08 * support24[i] + 0.06 * support48[i] +
-        0.14 * (1.0 - tile_disagreement[i]) + 0.14 * stability[i];
-    }
-    for (int sample : sample_levels) {
-      std::vector<int> rows;
-      for (int i = 0; i < n; ++i) if (samples[i] == sample) rows.push_back(i);
-      const std::vector<double> posterior = structured_svm::two_component_trust(evidence, rows);
-      for (std::size_t i = 0; i < rows.size(); ++i) {
-        const double absolute = std::max(0.0, std::min(1.0,
-          (evidence[rows[i]] - 0.35) / 0.50));
-        trust[rows[i]] = std::max(absolute, posterior[i]);
-      }
-      double support_sum = 0.0;
-      double discord_square = 0.0;
-      double discord_cross = 0.0;
-      for (int row : rows) {
-        const double discord = 1.0 - support[row];
-        const int limit = std::min(neighbors_k, static_cast<int>(neighbors[row].size()));
-        double neighbor_discord = 0.0;
-        for (int j = 0; j < limit; ++j) neighbor_discord += 1.0 - support[neighbors[row][j]];
-        if (limit > 0) neighbor_discord /= limit;
-        support_sum += support[row];
-        discord_square += discord * discord;
-        discord_cross += discord * neighbor_discord;
-      }
-      const double mean_support = support_sum / std::max<std::size_t>(1, rows.size());
-      const double autocorrelation = discord_cross / std::max(discord_square, 1e-12);
-      const auto logistic = [](double value) { return 1.0 / (1.0 + std::exp(-value)); };
-      const double spatial_coherence = logistic(24.0 * (autocorrelation - 0.84)) *
-        logistic(18.0 * (mean_support - 0.60));
-      const double clean_coherence = logistic(35.0 * (mean_support - 0.90));
-      const double sample_reliability = std::max(spatial_coherence, clean_coherence);
-      for (int row : rows) {
-        trust[row] = 1.0 - (1.0 - trust[row]) * (1.0 - 0.95 * sample_reliability);
-      }
-      double trust_sum = 0.0;
-      for (int row : rows) trust_sum += trust[row];
-      const double average_trust = trust_sum / std::max<std::size_t>(1, rows.size());
-      for (int row : rows) sample_mean_trust[row] = average_trust;
-    }
-    protected_component = structured_svm::protect_rare_components(
-      labels, samples, neighbors, trust, stability, tile_disagreement, classes, neighbors_k);
-    for (int i = 0; i < n; ++i) if (protected_component[i]) trust[i] = std::max(trust[i], 0.70);
   }
 
   // Add graph evidence only where the cross-fitted SVM is uncertain. This
@@ -1185,101 +799,9 @@ extern "C" SEXP _SpatialGraphRefine_structured_spatial_svm_cpp(SEXP xy_s,
   std::vector<int> output = structured_svm::decode_tv(
     blended, labels, support, neighbors, distances, classes, retention,
     tv_strength, probability_floor, coherence, tv_iterations, neighbors_k,
-    experimental_v2, trust, protected_component,
     decoded_probability);
-  std::vector<int> decision(n, 0);
-  std::vector<double> selective_risk(n, 0.0);
-  if (experimental_v2) {
-    structured_svm::DisjointSet change_components(n);
-    std::vector<char> proposed_change(n, 0);
-    for (int i = 0; i < n; ++i) proposed_change[i] = output[i] != labels[i];
-    for (int i = 0; i < n; ++i) {
-      if (!proposed_change[i]) continue;
-      const int limit = std::min(neighbors_k, static_cast<int>(neighbors[i].size()));
-      for (int j = 0; j < limit; ++j) {
-        const int other = neighbors[i][j];
-        if (proposed_change[other] && samples[i] == samples[other]) {
-          change_components.unite(i, other);
-        }
-      }
-    }
-    struct ChangeSummary { int count = 0; double support = 0; double stability = 0; double agreement = 0; };
-    std::unordered_map<int, ChangeSummary> change_summary;
-    std::unordered_map<std::uint64_t, int> change_label_count;
-    std::unordered_map<int, int> sample_size;
-    for (int sample : samples) ++sample_size[sample];
-    for (int i = 0; i < n; ++i) {
-      if (!proposed_change[i]) continue;
-      ChangeSummary& summary = change_summary[change_components.find(i)];
-      ++summary.count;
-      summary.support += support[i];
-      summary.stability += stability[i];
-      summary.agreement += 1.0 - tile_disagreement[i];
-      const std::uint64_t key = (static_cast<std::uint64_t>(change_components.find(i)) << 32) |
-        static_cast<std::uint32_t>(labels[i] - 1);
-      ++change_label_count[key];
-    }
-    std::vector<char> unresolved_component(n, 0);
-    for (int i = 0; i < n; ++i) {
-      if (!proposed_change[i]) continue;
-      const ChangeSummary& summary = change_summary[change_components.find(i)];
-      const int minimum = std::max(20, static_cast<int>(0.0002 * sample_size[samples[i]]));
-      int dominant = 0;
-      for (int c = 0; c < classes; ++c) {
-        const std::uint64_t key = (static_cast<std::uint64_t>(change_components.find(i)) << 32) |
-          static_cast<std::uint32_t>(c);
-        const auto found = change_label_count.find(key);
-        if (found != change_label_count.end()) dominant = std::max(dominant, found->second);
-      }
-      unresolved_component[i] = summary.count >= minimum &&
-        (static_cast<double>(dominant) / summary.count > 0.45 ||
-         sample_mean_trust[i] > 0.83) &&
-        summary.stability / summary.count > 0.55 &&
-        summary.agreement / summary.count > 0.60;
-    }
-    for (int i = 0; i < n; ++i) {
-      double first = -1.0;
-      double second = -1.0;
-      for (int c = 0; c < classes; ++c) {
-        const double value = decoded_probability[static_cast<std::size_t>(i) * classes + c];
-        if (value > first) {
-          second = first;
-          first = value;
-        } else if (value > second) second = value;
-      }
-      const double decoded_margin = first - std::max(0.0, second);
-      const int proposal = output[i] - 1;
-      const int original = labels[i] - 1;
-      const double svm_advantage = std::max(0.0,
-        blended[static_cast<std::size_t>(i) * classes + proposal] -
-        blended[static_cast<std::size_t>(i) * classes + original]);
-      const double correction_score = (1.0 - trust[i]) *
-        std::sqrt(std::max(0.0, decoded_margin * svm_advantage)) *
-        (0.55 + 0.45 * stability[i]) *
-        (1.0 - support[i]) * (1.0 - support[i]);
-      selective_risk[i] = 1.0 - correction_score;
-      const double coherence_scale = 1.0 + 9.0 /
-        (1.0 + std::exp(-60.0 * (sample_mean_trust[i] - 0.82)));
-      const double effective_change_threshold = change_threshold * coherence_scale;
-      if (output[i] == labels[i]) {
-        decision[i] = 0;
-      } else if (unresolved_component[i]) {
-        decision[i] = 2;
-        output[i] = labels[i];
-      } else if (correction_score >= effective_change_threshold &&
-                 (!protected_component[i] || correction_score >= 0.80)) {
-        decision[i] = 1;
-      } else if (correction_score >= unresolved_threshold) {
-        decision[i] = 2;
-        output[i] = labels[i];
-      } else {
-        decision[i] = 0;
-        output[i] = labels[i];
-      }
-    }
-  }
   std::vector<int> abstained_samples;
-  if (!experimental_v2 && topology_abstention) {
+  if (topology_abstention) {
     for (int sample : sample_levels) {
       double support_sum = 0.0;
       double discord_square = 0.0;
@@ -1314,7 +836,7 @@ extern "C" SEXP _SpatialGraphRefine_structured_spatial_svm_cpp(SEXP xy_s,
       }
     }
   }
-  for (int i = 0; !experimental_v2 && i < n; ++i) {
+  for (int i = 0; i < n; ++i) {
     if (support[i] < preserve_support) continue;
     output[i] = labels[i];
     for (int c = 0; c < classes; ++c) {
@@ -1343,25 +865,12 @@ extern "C" SEXP _SpatialGraphRefine_structured_spatial_svm_cpp(SEXP xy_s,
 
   IntegerVector refined(output.begin(), output.end());
   NumericVector support_r(support.begin(), support.end());
-  NumericVector trust_r(trust.begin(), trust.end());
-  NumericVector disagreement_r(tile_disagreement.begin(), tile_disagreement.end());
-  NumericVector stability_r(stability.begin(), stability.end());
-  NumericVector risk_r(selective_risk.begin(), selective_risk.end());
-  IntegerVector decision_r(decision.begin(), decision.end());
-  LogicalVector protected_r(n);
-  for (int i = 0; i < n; ++i) protected_r[i] = protected_component[i];
   IntegerVector abstained_r(abstained_samples.begin(), abstained_samples.end());
   return List::create(
     _["labels"] = refined,
     _["confidence"] = confidence,
     _["margin"] = margin,
     _["local_support"] = support_r,
-    _["trust"] = trust_r,
-    _["tile_disagreement"] = disagreement_r,
-    _["perturbation_stability"] = stability_r,
-    _["selective_risk"] = risk_r,
-    _["decision"] = decision_r,
-    _["protected_component"] = protected_r,
     _["abstained_samples"] = abstained_r,
     _["tiles"] = tile_count
   );
