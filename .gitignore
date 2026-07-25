@@ -8,6 +8,8 @@ API.key
 ..Rcheck/
 marginSVM.Rcheck/
 marginSVM_*.tar.gz
+fibermargin.Rcheck/
+fibermargin_*.tar.gz
 site/
 tmp/
 src/*.o

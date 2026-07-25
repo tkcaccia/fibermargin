@@ -19,8 +19,10 @@ constexpr double kGoldenRatioConjugate = 0.6180339887498949;
 constexpr double kSqrtTwoConjugate = 0.4142135623730951;
 constexpr double kSqrtThreeConjugate = 0.7320508075688772;
 constexpr double kPi = 3.141592653589793238462643383279502884;
-constexpr int kViews2D = 7;
-constexpr int kViews3D = 9;
+// This is the smallest fixed atlas that improved accuracy and ARI across the
+// frozen CRC, DLPFC, and MERFISH panels in the atlas-size audit.
+constexpr int kViews2D = 9;
+constexpr int kViews3D = 12;
 // One fixed central transport range keeps the enclosure rule single-scale and
 // avoids a multiscale ladder in the public operator.
 constexpr std::array<double, 1> kScales = {5.0};
@@ -643,9 +645,9 @@ SampleResult refine_sample(const std::vector<double>& coordinates,
       }
       variance /= static_cast<double>(charts);
       full_margin[index] = mean;
-      // This fixed two-sided chart-dispersion radius is twice the deterministic
-      // atlas deviation sqrt(sum((m_a - mean)^2)) / A, not a sampling SE.
-      full_dispersion[index] = 2.0 * std::sqrt(variance) /
+      // The admission scale is the empirical chart standard deviation divided
+      // by sqrt(A): one standard error across the fixed spatial atlas.
+      full_dispersion[index] = std::sqrt(variance) /
         std::sqrt(static_cast<double>(charts));
     }
   };
