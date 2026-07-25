@@ -4,7 +4,7 @@
 #' field. The function is deterministic: no training phase is run and all route
 #' constants are fixed internally. For multiclass data, each class receives a
 #' two-sided local evidence score from short directional neighborhood sweeps; in
-#' the binary case it applies the analogous dyadic-volume ballot rule.
+#' the binary case it applies a fixed nearest-neighbour ballot rule.
 #'
 #' The method can process multiple specimens at once. Each specimen is refined
 #' independently from the others; labels are never shared across specimens. A

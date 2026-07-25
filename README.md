@@ -96,8 +96,10 @@ attr(refined, "changed")
 `margin_score` is an uncalibrated rival-versus-observed evidence contrast, not a
 probability or expected loss. `repair_margin >= 0` is the selective change
 criterion for a candidate that differs from the observed label.
-`atlas_dispersion` is a deterministic chart-disagreement scale, not a standard
-error or calibrated probability.
+`atlas_dispersion` is the empirical standard deviation of the deterministic
+chart contrasts divided by the square root of the atlas size. It is a
+descriptive admission scale, not a calibrated probability or confidence
+interval.
 `isolation` is the multiclass local-gap protection factor; it is one for the
 binary ballot.
 
@@ -137,16 +139,20 @@ mean(crc$labels != crc$truth)
 
 ## Current Validation
 
-The C++ implementation is evaluated on predefined CRC and MERFISH corruption
-protocols. On the direct-comparator matrices, it obtains 0.8600 accuracy and
-0.7812 ARI across 60 CRC corruptions, within 0.0005 and 0.0016 of multiscale
-mode, respectively. Across 45 MERFISH corruptions it obtains 0.8886 accuracy
-and 0.7951 ARI, exceeding the strongest fixed comparator by 0.0044 accuracy
-and 0.0063 ARI. These are controlled label-recovery results, not claims that
-the biological annotations are naturally wrong.
+The C++ implementation is evaluated on predefined CRC, DLPFC, and MERFISH
+corruption protocols. On the direct-comparator matrices, it obtains 0.8589
+accuracy and 0.7806 ARI across 60 CRC corruptions, within 0.0015 and 0.0021 of
+multiscale mode. Across 45 DLPFC corruptions it obtains 0.8942 accuracy and
+0.8220 ARI. Across 45 MERFISH corruptions it obtains 0.8905 accuracy and
+0.8004 ARI, exceeding the strongest fixed comparator by 0.0062 accuracy and
+0.0116 ARI. These are controlled label-recovery results, not claims that the
+biological annotations are naturally wrong.
 
-The protocol definitions, package-build metadata, per-case ledgers, and matched plots
-are under `benchmarks/results/fibermargin_final_enclosure_real_matrix_v2/`.
+The protocol definitions, package-build metadata, per-case ledgers, and matched
+plots are under
+`benchmarks/results/fibermargin_atlas912_full_roster_v1/`; the source-matched
+FiberMargin confirmation is in
+`benchmarks/results/fibermargin_atlas912_full_confirmation_v1/`.
 Additional simulation and mask panels are retained in the repository and are
 re-evaluated only when the production source changes.
 
