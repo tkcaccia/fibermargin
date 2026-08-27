@@ -159,8 +159,14 @@ refine_spatial_labels(xy, labels, samples = NULL, workers = NULL)
 
 `xy` must be a finite numeric matrix with two or three columns. `labels` must
 contain one non-missing categorical value per row. `samples` is optional and
-identifies independent specimens. `workers = NULL` uses a conservative automatic
-CPU budget; set an integer for an explicit budget.
+defines independent coordinate systems. Integer, character, and factor specimen
+identifiers are accepted. `workers = NULL` uses a conservative automatic CPU
+budget; set a positive integer for an explicit total budget.
+
+Effective dimensionality is determined separately within every specimen.
+Zero-range axes are removed before refinement. At least two varying axes must
+remain, so constant `z` reduces a three-column specimen to 2D while variable
+`z` remains part of a genuine 3D analysis.
 
 The output is a factor with the input levels and row names. Seven pointwise audit
 attributes are attached:
@@ -191,6 +197,22 @@ contrast, `required` is the local admission barrier, and `repair_margin` is
 probabilities. `atlas_dispersion` describes disagreement across path charts,
 `isolation` protects locally isolated observations, and `changed` identifies
 accepted edits.
+
+Eight summary attributes provide a specimen-level audit:
+
+```{r summary-diagnostics}
+summary_names <- c(
+  "workers", "dimensions_used", "labels_changed", "changed_fraction",
+  "classes_before", "classes_after", "removed_classes", "sample_sizes"
+)
+lapply(summary_names, function(name) attr(refined_gradient, name))
+```
+
+`dimensions_used`, `labels_changed`, `changed_fraction`, and `sample_sizes` are
+named vectors. The three class summaries are named lists. An unused factor level
+is not counted as a class present before refinement. FiberMargin does not impose
+class preservation; if an observed class disappears, it is listed in
+`removed_classes`.
 
 The output contract can be checked directly:
 
@@ -231,26 +253,75 @@ c(
 For this route, `isolation` is one and `atlas_dispersion` is zero because no
 multiclass path atlas is used.
 
+## Effective 2D and genuine 3D coordinates
+
+A constant third axis is removed within the specimen, producing the same labels
+and every same pointwise diagnostic as the 2D call.
+
+```{r constant-z}
+flat_2d <- refine_spatial_labels(
+  gradient$xy, gradient$labels, gradient$samples, workers = 1L
+)
+flat_3d <- refine_spatial_labels(
+  cbind(gradient$xy, z = 0), gradient$labels,
+  gradient$samples, workers = 1L
+)
+identical(flat_2d, flat_3d)
+attr(flat_3d, "dimensions_used")
+```
+
+For variable `z`, all three coordinates participate in chart construction and
+distance calculations.
+
+```{r genuine-3d}
+volume_example <- simulate_volumetric_domains(
+  n = 1800L,
+  shape = "folded_layers",
+  samples = 2L,
+  noise = 0.18,
+  seed = 23L
+)
+volume_refined <- refine_spatial_labels(
+  volume_example$xy, volume_example$labels,
+  volume_example$samples, workers = 2L
+)
+attr(volume_refined, "dimensions_used")
+```
+
 ## Multiple specimens
 
 Specimen identifiers prevent evidence from crossing tissue or section boundaries.
-The combined result is equivalent to refining each specimen separately.
+Numeric coordinates may overlap completely because each specimen has its own
+coordinate system. The combined result is equivalent to refining each specimen
+separately and is restored to the original row order.
 
-```{r specimen-isolation, eval=FALSE}
+```{r specimen-isolation}
+source_rows <- which(gradient$samples == levels(gradient$samples)[1L])
+overlapping_xy <- rbind(
+  gradient$xy[source_rows, , drop = FALSE],
+  gradient$xy[source_rows, , drop = FALSE]
+)
+overlapping_labels <- factor(
+  rep(as.character(gradient$labels[source_rows]), 2L),
+  levels = levels(gradient$labels)
+)
+overlapping_samples <- rep(
+  c("section_1", "section_2"), each = length(source_rows)
+)
 joint <- refine_spatial_labels(
-  gradient$xy, gradient$labels,
-  samples = gradient$samples, workers = 2L
+  overlapping_xy, overlapping_labels,
+  samples = overlapping_samples, workers = 2L
 )
 
 separate <- unsplit(
-  lapply(split(seq_len(nrow(gradient$xy)), gradient$samples), function(rows) {
+  lapply(split(seq_len(nrow(overlapping_xy)), overlapping_samples), function(rows) {
     refine_spatial_labels(
-      gradient$xy[rows, , drop = FALSE],
-      gradient$labels[rows],
+      overlapping_xy[rows, , drop = FALSE],
+      overlapping_labels[rows],
       workers = 1L
     )
   }),
-  gradient$samples
+  overlapping_samples
 )
 
 identical(as.character(joint), as.character(separate))
@@ -258,7 +329,10 @@ identical(as.character(joint), as.character(separate))
 
 ## Deterministic CPU use
 
-Changing `workers` changes execution only, not the mathematical result.
+`workers` is one total native budget, not workers per specimen. Specimens reuse
+the budget and native stages do not create nested pools. The implementation uses
+standard C++ threads on macOS, Linux, and Windows. Changing `workers` changes
+execution only, not labels or diagnostics.
 
 ```{r worker-determinism, eval=FALSE}
 one_worker <- refine_spatial_labels(
@@ -267,7 +341,9 @@ one_worker <- refine_spatial_labels(
 four_workers <- refine_spatial_labels(
   gradient$xy, gradient$labels, gradient$samples, workers = 4L
 )
-identical(as.character(one_worker), as.character(four_workers))
+attr(one_worker, "workers") <- NULL
+attr(four_workers, "workers") <- NULL
+identical(one_worker, four_workers)
 ```
 
 # Clean categorical masks

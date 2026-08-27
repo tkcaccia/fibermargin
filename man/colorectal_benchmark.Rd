@@ -10,9 +10,9 @@ A list with coordinates, integer reference labels, adjacent-region
   metadata.
 }
 \source{
-10x Genomics, Visium HD Spatial Gene Expression Library, Human
-  Colorectal Cancer (FFPE), analyzed with Space Ranger 4.0.1,
-  \url{https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-libraries-of-human-crc-v4}.
+The
+  \href{https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-libraries-of-human-crc-v4}{10x
+  Genomics human CRC Visium HD dataset}, analyzed with Space Ranger 4.0.1.
 }
 \usage{
 data(colorectal_benchmark)

@@ -1,0 +1,101 @@
+"dataset","method","metric","value"
+"CRC","Multiscale mode","Accuracy",0.860424623429851
+"CRC","Multiscale mode","ARI",0.78273914892092
+"CRC","Alpha-expansion Potts","Accuracy",0.859982385889521
+"CRC","Alpha-expansion Potts","ARI",0.781527036110574
+"CRC","FiberMargin","Accuracy",0.85890086579864
+"CRC","FiberMargin","ARI",0.780623078893737
+"CRC","8-NN modal filter","Accuracy",0.853217316658185
+"CRC","8-NN modal filter","ARI",0.770733188877343
+"CRC","Potts-like ICM","Accuracy",0.850319212916557
+"CRC","Potts-like ICM","ARI",0.768991637118472
+"CRC","Harmonic propagation","Accuracy",0.849690210975236
+"CRC","Harmonic propagation","ARI",0.76819404631173
+"CRC","SpaGCN correction","Accuracy",0.849034650793406
+"CRC","SpaGCN correction","ARI",0.766120795245196
+"CRC","Coordinate CRF","Accuracy",0.810000976657877
+"CRC","Coordinate CRF","ARI",0.708526212865949
+"CRC","Initial","Accuracy",0.810000976657877
+"CRC","Initial","ARI",0.708526212865949
+"CRC","GraphST correction","Accuracy",0.808141043104881
+"CRC","GraphST correction","ARI",0.714121747365504
+"DLPFC","FiberMargin","Accuracy",0.894192660830452
+"DLPFC","FiberMargin","ARI",0.82201561545009
+"DLPFC","GraphST correction","Accuracy",0.884560793124253
+"DLPFC","GraphST correction","ARI",0.80578205644726
+"DLPFC","Potts-like ICM","Accuracy",0.884185171881933
+"DLPFC","Potts-like ICM","ARI",0.811181759112302
+"DLPFC","Multiscale mode","Accuracy",0.878535828397435
+"DLPFC","Multiscale mode","ARI",0.80288548740398
+"DLPFC","Alpha-expansion Potts","Accuracy",0.870896161855193
+"DLPFC","Alpha-expansion Potts","ARI",0.791288092441827
+"DLPFC","Harmonic propagation","Accuracy",0.868888466314991
+"DLPFC","Harmonic propagation","ARI",0.789401750420965
+"DLPFC","SpaGCN correction","Accuracy",0.856886428569752
+"DLPFC","SpaGCN correction","ARI",0.769572569948602
+"DLPFC","8-NN modal filter","Accuracy",0.856573254358967
+"DLPFC","8-NN modal filter","ARI",0.764969547701994
+"DLPFC","Coordinate CRF","Accuracy",0.827207655160919
+"DLPFC","Coordinate CRF","ARI",0.725920024404562
+"DLPFC","Initial","Accuracy",0.810000915576778
+"DLPFC","Initial","ARI",0.695616866203492
+"MERFISH","FiberMargin","Accuracy",0.89052669578149
+"MERFISH","FiberMargin","ARI",0.80043711965165
+"MERFISH","Alpha-expansion Potts","Accuracy",0.884271325038355
+"MERFISH","Alpha-expansion Potts","ARI",0.788800811659171
+"MERFISH","Multiscale mode","Accuracy",0.882307055439802
+"MERFISH","Multiscale mode","ARI",0.785618697863791
+"MERFISH","Harmonic propagation","Accuracy",0.881691798801662
+"MERFISH","Harmonic propagation","ARI",0.784226664669674
+"MERFISH","Potts-like ICM","Accuracy",0.874161967879523
+"MERFISH","Potts-like ICM","ARI",0.771247662593224
+"MERFISH","GraphST correction","Accuracy",0.871328177419924
+"MERFISH","GraphST correction","ARI",0.779756312934429
+"MERFISH","8-NN modal filter","Accuracy",0.869525569642107
+"MERFISH","8-NN modal filter","ARI",0.759554046177325
+"MERFISH","SpaGCN correction","Accuracy",0.863379281389664
+"MERFISH","SpaGCN correction","ARI",0.748474663518667
+"MERFISH","Coordinate CRF","Accuracy",0.826325764264105
+"MERFISH","Coordinate CRF","ARI",0.683715603627337
+"MERFISH","Initial","Accuracy",0.810010476627703
+"MERFISH","Initial","ARI",0.650220044067649
+"CamVid","Initial","Accuracy",0.609637112024937
+"CamVid","Initial","ARI",0.510281804226758
+"CamVid","Alpha-expansion Potts","Accuracy",0.617993647130475
+"CamVid","Alpha-expansion Potts","ARI",0.518201238295294
+"CamVid","Coordinate CRF","Accuracy",0.609927052568509
+"CamVid","Coordinate CRF","ARI",0.510648035768028
+"CamVid","Harmonic propagation","Accuracy",0.628506088963974
+"CamVid","Harmonic propagation","ARI",0.527818709987594
+"CamVid","Multiscale mode","Accuracy",0.623368543105475
+"CamVid","Multiscale mode","ARI",0.522942658351673
+"CamVid","SpaGCN correction","Accuracy",0.616813126551219
+"CamVid","SpaGCN correction","ARI",0.516885433971948
+"CamVid","GraphST correction","Accuracy",0.63440096372449
+"CamVid","GraphST correction","ARI",0.531839197821025
+"CamVid","8-NN modal filter","Accuracy",0.621976617902065
+"CamVid","8-NN modal filter","ARI",0.52135021771522
+"CamVid","Potts-like ICM","Accuracy",0.620915903516496
+"CamVid","Potts-like ICM","ARI",0.520987127721397
+"S3DIS","Initial","Accuracy",0.600639792049632
+"S3DIS","Initial","ARI",0.531475845410888
+"S3DIS","Alpha-expansion Potts","Accuracy",0.619137034696691
+"S3DIS","Alpha-expansion Potts","ARI",0.559199736134815
+"S3DIS","Coordinate CRF","Accuracy",0.601673799402574
+"S3DIS","Coordinate CRF","ARI",0.532724837129423
+"S3DIS","Harmonic propagation","Accuracy",0.626777200137868
+"S3DIS","Harmonic propagation","ARI",0.568422478328036
+"S3DIS","Multiscale mode","Accuracy",0.619589412913603
+"S3DIS","Multiscale mode","ARI",0.558348518548137
+"S3DIS","SpaGCN correction","Accuracy",0.611259909237132
+"S3DIS","SpaGCN correction","ARI",0.546109846955542
+"S3DIS","GraphST correction","Accuracy",0.632241641773897
+"S3DIS","GraphST correction","ARI",0.577714479262407
+"S3DIS","8-NN modal filter","Accuracy",0.616254021139706
+"S3DIS","8-NN modal filter","ARI",0.553919403283988
+"S3DIS","Potts-like ICM","Accuracy",0.616602280560662
+"S3DIS","Potts-like ICM","ARI",0.553198285716208
+"CamVid","FiberMargin","Accuracy",0.628284949958037
+"CamVid","FiberMargin","ARI",0.52679827173811
+"S3DIS","FiberMargin","Accuracy",0.621050666360294
+"S3DIS","FiberMargin","ARI",0.565084614299046

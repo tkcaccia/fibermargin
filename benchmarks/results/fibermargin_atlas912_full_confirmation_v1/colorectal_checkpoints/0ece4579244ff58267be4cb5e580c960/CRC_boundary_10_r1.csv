@@ -1,0 +1,2 @@
+"dataset","scenario_id","noise","mechanism","replicate","method","observations","accuracy","ari","macro_recall","worst_recall","boundary_accuracy","sparse_region_accuracy","correction_recall","damage_rate","changed_fraction","seconds"
+"CRC","CRC_boundary_10_r1",0.1,"boundary",1,"FiberMargin",194541,0.925388478521237,0.880041527808285,0.86425219760375,0.487179487179487,0.678100853097503,0.487179487179487,0.418114526575511,0.018248070959009,0.0583681588970962,1.368

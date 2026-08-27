@@ -1,0 +1,2 @@
+"method","scenarios","accuracy","ari","macro_recall","worst_recall","sparse_region_accuracy","boundary_accuracy","correction_recall","damage_rate","seconds"
+"FiberMargin",108,0.86447037037037,0.719364841375446,0.775100292514596,0.572721167684325,0.629607088863586,0.675287037037037,0.532111111111111,0.0247432098765432,0.0174907407407408

@@ -239,8 +239,9 @@ load_spatial_benchmark <- function(
 #'   \item{design}{Scenario corruption design.}
 #'   \item{metadata}{Source, license, and citation information.}
 #' }
-#' @source The `spatialLIBD` Bioconductor data package,
-#'   \url{https://bioconductor.org/packages/spatialLIBD}.
+#' @source The
+#'   \href{https://bioconductor.org/packages/spatialLIBD}{spatialLIBD
+#'   Bioconductor data package}.
 #' @references
 #' Maynard KR et al. (2021). Transcriptome-scale spatial gene expression in the
 #' human dorsolateral prefrontal cortex. Nature Neuroscience 24, 425-436.
@@ -260,9 +261,9 @@ load_spatial_benchmark <- function(
 #' @format A list with coordinates, integer reference labels, adjacent-region
 #'   labels, boundary and sparse indicators, corruption design, and attribution
 #'   metadata.
-#' @source 10x Genomics, Visium HD Spatial Gene Expression Library, Human
-#'   Colorectal Cancer (FFPE), analyzed with Space Ranger 4.0.1,
-#'   \url{https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-libraries-of-human-crc-v4}.
+#' @source The
+#'   \href{https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-libraries-of-human-crc-v4}{10x
+#'   Genomics human CRC Visium HD dataset}, analyzed with Space Ranger 4.0.1.
 #' @references 10x Genomics (2025). Visium HD Spatial Gene Expression Library,
 #'   Human Colorectal Cancer (FFPE). Published July 3, 2025. CC BY 4.0.
 "colorectal_benchmark"
