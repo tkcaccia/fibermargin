@@ -33,7 +33,7 @@ navbar:
       href: articles/benchmarks.html
     manuscript:
       text: Manuscript
-      href: https://github.com/tkcaccia/fibermargin/blob/main/output/pdf/fibermargin-jmlr-manuscript.pdf
+      href: https://github.com/tkcaccia/fibermargin/blob/main/manuscript/fibermargin-jmlr-submission.pdf
 
 reference:
   - title: Repair and Refinement
@@ -66,6 +66,7 @@ reference:
       - available_spatial_benchmarks
       - load_spatial_benchmark
       - dlpfc_benchmark
+      - colorectal_benchmark
 
 footer:
   structure:
