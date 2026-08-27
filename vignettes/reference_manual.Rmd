@@ -9,12 +9,18 @@ vignette: >
 
 This vignette summarizes the package interface for quick look-up while working in R.
 
+```{r setup, include=FALSE}
+library(fibermargin)
+```
+
 ## Functions
 
 ### Refinement
 
 - `refine_spatial_labels(xy, labels, samples = NULL, workers = NULL)`  
-  Refines noisy labels on 2D/3D coordinates.
+  Refines noisy labels on finite 2D/3D coordinates. `samples` defines fully
+  independent coordinate systems, and `workers` is one deterministic total CPU
+  budget.
 
 - `clean_categorical_mask(mask, samples = NULL, workers = NULL)`  
   Cleans a categorical matrix (2D) or array (3D).
@@ -29,6 +35,54 @@ This vignette summarizes the package interface for quick look-up while working i
 
 All simulators return a `spatial_refinement_benchmark` object with `xy`,
 `labels`, `truth`, `samples`, and optional `boundary`/`sparse` fields.
+
+## `refine_spatial_labels()` contract
+
+- `xy`: a finite numeric matrix with exactly two or three columns.
+- `labels`: one non-missing categorical assignment per row.
+- `samples`: optional integer, character, or factor identifiers. Coordinates and
+  labels never cross sample boundaries, even when coordinate values overlap.
+- `workers`: `NULL` or one positive integer specifying the total CPU budget.
+
+Constant axes are removed separately in each sample. A constant `z` therefore
+uses the 2D operator, while a variable `z` uses the genuine 3D operator. Every
+sample must retain at least two varying axes.
+
+The return value is an ordinary factor with input levels and identifiers. Its
+pointwise attributes are `candidate`, `margin_score`, `required`,
+`repair_margin`, `atlas_dispersion`, `isolation`, and `changed`. Summary
+attributes are `workers`, `dimensions_used`, `labels_changed`,
+`changed_fraction`, `classes_before`, `classes_after`, `removed_classes`, and
+`sample_sizes`. Class summaries are per-sample named lists. Class preservation
+is not imposed; `removed_classes` reports observed classes absent after repair.
+
+```{r contract-examples}
+set.seed(8)
+xy <- matrix(runif(1200), ncol = 2)
+labels <- factor(ifelse(xy[, 1] < 0.5, "left", "right"))
+
+refined_2d <- refine_spatial_labels(xy, labels, workers = 1L)
+refined_flat_3d <- refine_spatial_labels(
+  cbind(xy, z = 0), labels, workers = 1L
+)
+stopifnot(identical(refined_2d, refined_flat_3d))
+
+volume <- simulate_volumetric_domains(
+  n = 1200L, shape = "folded_layers", samples = 2L, seed = 9L
+)
+refined_3d <- refine_spatial_labels(
+  volume$xy, volume$labels, volume$samples, workers = 2L
+)
+attr(refined_3d, "dimensions_used")
+
+overlap_xy <- rbind(xy, xy)
+overlap_labels <- factor(rep(as.character(labels), 2L))
+specimen <- rep(c("first", "second"), each = nrow(xy))
+refined_joint <- refine_spatial_labels(
+  overlap_xy, overlap_labels, specimen, workers = 2L
+)
+attr(refined_joint, "sample_sizes")
+```
 
 ### Evaluation
 

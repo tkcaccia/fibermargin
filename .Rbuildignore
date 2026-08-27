@@ -23,6 +23,7 @@
 ^src/.*\.(o|so|dll|dylib)$
 ^doc$
 ^Meta$
+^cran-comments\.md$
 
 # Exclude workspace-only directories recursively when building the package.
 ^\.git($|/)

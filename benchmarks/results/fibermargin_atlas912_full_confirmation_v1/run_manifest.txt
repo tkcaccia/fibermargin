@@ -1,0 +1,9 @@
+frozen_method FiberMargin
+source_md5 0ece4579244ff58267be4cb5e580c960
+specimen_exchange disabled
+atlas_variability normalized_deterministic_dispersion
+all_coordinate_controls FALSE
+comparator_roster Initial; SpaGCN refine; GraphST refine; Potts-like ICM
+evaluated 2026-07-24 20:29:06 UTC
+suite volumetric_primary
+workers 4

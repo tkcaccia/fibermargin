@@ -1,0 +1,8 @@
+package_version: 0.1.0
+R_version: R version 4.6.0 (2026-04-24)
+system: Darwin 23.5.0 arm64
+cpu: arm64
+physical_cores_detected: NA
+logical_cores_detected: 8
+preprocessing_included: validation, specimen indexing, axis reduction, normalization, and all native refinement
+simulation_generation_included: no

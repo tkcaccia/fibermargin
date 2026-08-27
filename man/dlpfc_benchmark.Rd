@@ -20,8 +20,9 @@ A list with the following elements:
 }
 }
 \source{
-The `spatialLIBD` Bioconductor data package,
-  \url{https://bioconductor.org/packages/spatialLIBD}.
+The
+  \href{https://bioconductor.org/packages/spatialLIBD}{spatialLIBD
+  Bioconductor data package}.
 }
 \usage{
 data(dlpfc_benchmark)

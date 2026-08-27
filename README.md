@@ -46,17 +46,58 @@ c(
 )
 ```
 
-Only `xy` and `labels` are required. When `samples` is supplied, every specimen
-is refined independently. `workers` is a CPU budget shared across independent
-specimens and independent atlas charts:
+Only `xy` and `labels` are required. `samples` defines independent coordinate
+systems: coordinates may overlap completely between specimens, but neither
+coordinates nor labels cross a specimen boundary. Constant coordinate axes are
+removed separately within each specimen. A specimen with columns `(x, y, z)`
+and constant `z` is therefore exactly equivalent to `(x, y)`, while genuinely
+three-dimensional specimens use all three coordinates.
+
+`workers` is the total native CPU budget for the call, not a budget per specimen:
 
 ```r
 refined <- refine_spatial_labels(xy, labels, samples, workers = 4)
 ```
 
-Chart parallelism is deterministic: changing `workers` does not change labels or
-diagnostics. In the package benchmark, four workers provided 2.01--2.52x speedups
-for single 100,000-point 2D/3D fields and 3.37x across four specimens.
+The same budget is reused as specimens are processed, so there is no nested
+process pool or worker multiplication. Native parallelism is available on macOS,
+Linux, and Windows. Changing `workers` does not change labels or diagnostics.
+
+On an 8-core Apple M3, the release benchmark for 100,000 genuinely 3D locations
+in four specimens took a median 0.518 seconds with one worker and 0.183 seconds
+with four workers (2.83x speedup; three measured repetitions per budget).
+Validation, specimen indexing, axis reduction, coordinate normalization, and
+native refinement are included; simulation generation is excluded. The script
+and raw timings are under `benchmarks/benchmark_release_workers.R` and
+`benchmarks/results/release_0.1.0_worker_benchmark/`.
+
+### Genuine 3D coordinates
+
+```r
+volume <- simulate_volumetric_domains(
+  n = 12000,
+  shape = "folded_layers",
+  samples = 2,
+  seed = 42
+)
+
+volume_refined <- refine_spatial_labels(
+  volume$xy, volume$labels, volume$samples, workers = 4
+)
+attr(volume_refined, "dimensions_used")
+```
+
+### Independent specimens with overlapping coordinates
+
+```r
+xy_one <- sim$xy[sim$samples == levels(sim$samples)[1], , drop = FALSE]
+xy <- rbind(xy_one, xy_one)
+samples <- rep(c("section_1", "section_2"), each = nrow(xy_one))
+labels <- factor(rep(sim$labels[sim$samples == levels(sim$samples)[1]], 2))
+
+joint <- refine_spatial_labels(xy, labels, samples, workers = 4)
+attr(joint, "sample_sizes")
+```
 
 ## Clean a Categorical Mask
 
@@ -102,6 +143,23 @@ descriptive admission scale, not a calibrated probability or confidence
 interval.
 `isolation` is the multiclass local-gap protection factor; it is one for the
 binary ballot.
+
+The following named summaries are also attached:
+
+```r
+attr(refined, "workers")
+attr(refined, "dimensions_used")
+attr(refined, "labels_changed")
+attr(refined, "changed_fraction")
+attr(refined, "classes_before")
+attr(refined, "classes_after")
+attr(refined, "removed_classes")
+attr(refined, "sample_sizes")
+```
+
+All summaries except `workers` are reported per specimen; class summaries are
+named lists. FiberMargin does not force the output to retain every observed
+class. `removed_classes` makes any disappearance explicit.
 
 ## Evaluation
 

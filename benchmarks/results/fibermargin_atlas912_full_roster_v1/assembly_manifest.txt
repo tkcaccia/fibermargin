@@ -1,0 +1,7 @@
+FiberMargin final full-roster assembly
+assembled_utc: 2026-07-24 20:34:24 UTC
+controls: /Users/stefano/Documents/SVD refinement/benchmarks/results/fibermargin_standard_error_full_roster_v1
+FiberMargin candidate: /Users/stefano/Documents/SVD refinement/benchmarks/results/fibermargin_atlas912_full_confirmation_v1
+replacement rule: replace only method == FiberMargin
+released atlas: 9 paths in 2D; 12 paths in 3D
+timing warning: FiberMargin and controls were not timed in one fresh run
