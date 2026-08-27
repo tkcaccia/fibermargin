@@ -63,6 +63,7 @@ reference:
       - available_spatial_benchmarks
       - load_spatial_benchmark
       - dlpfc_benchmark
+      - colorectal_benchmark
 
 footer:
   structure:
