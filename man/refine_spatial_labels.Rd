@@ -14,8 +14,9 @@ refine_spatial_labels(xy, labels, samples = NULL, workers = NULL)
 \item{samples}{Optional specimen identifier. Different specimens are refined
 independently.}
 
-\item{workers}{Optional CPU budget used across specimens and independent
-spatial charts. `NULL` uses up to four physical cores when possible.}
+\item{workers}{Optional total CPU budget shared by the native computation.
+`NULL` uses up to two physical cores. The budget is never multiplied by the
+number of specimens, and results are independent of the worker count.}
 }
 \value{
 A factor with the levels and row names of `labels`. Attributes
@@ -27,22 +28,38 @@ A factor with the levels and row names of `labels`. Attributes
   marks updated sites. `isolation` is a deterministic local-gap
   protection factor in the multiclass route (one for the binary ballot). A
   candidate is accepted exactly when it differs from the observed label and
-  `repair_margin` is nonnegative.
+  `repair_margin` is nonnegative. Summary attributes report `workers`,
+  `dimensions_used`, `labels_changed`, `changed_fraction`, `classes_before`,
+  `classes_after`, `removed_classes`, and `sample_sizes`. Except for
+  `workers`, these summaries are named by specimen; class summaries are named
+  lists. Class counts are not constrained, so `removed_classes` explicitly
+  records observed classes that disappear after refinement.
 }
 \description{
 `refine_spatial_labels()` applies FiberMargin to a coordinate-indexed label
 field. The function is deterministic: no training phase is run and all route
 constants are fixed internally. For multiclass data, each class receives a
 two-sided local evidence score from short directional neighborhood sweeps; in
-the binary case it applies the analogous dyadic-volume ballot rule.
+the binary case it applies a fixed nearest-neighbour ballot rule.
 }
 \details{
-The method can process multiple specimens at once. Each specimen is refined
-independently from the others; labels are never shared across specimens. A
-specimen with no spatial extent is returned unchanged.
+The method can process multiple specimens at once. `samples` defines
+independent coordinate systems: coordinates and labels are never shared
+across specimens, even when their numeric coordinate ranges overlap. Constant
+coordinate axes are removed separately within each specimen. Consequently, a
+three-column specimen with constant `z` is processed identically to its
+two-column `(x, y)` representation, while genuinely three-dimensional
+specimens retain all three axes.
 }
 \examples{
 sim <- simulate_gradient_regions(n = 2000, samples = 2)
 refined <- refine_spatial_labels(sim$xy, sim$labels, sim$samples)
 mean(refined == sim$truth)
+
+# A constant z axis is removed within this specimen.
+xyz <- cbind(sim$xy, z = 0)
+stopifnot(identical(
+  refine_spatial_labels(xyz, sim$labels, sim$samples, workers = 1),
+  refine_spatial_labels(sim$xy, sim$labels, sim$samples, workers = 1)
+))
 }

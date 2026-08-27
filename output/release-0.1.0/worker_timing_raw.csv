@@ -1,0 +1,7 @@
+"workers_requested","workers_used","repetition","measured","elapsed_seconds","observations","specimens","dimensions"
+1,1,1,TRUE,0.521,100000,4,3
+4,4,2,TRUE,0.186,100000,4,3
+4,4,3,TRUE,0.182,100000,4,3
+1,1,4,TRUE,0.518,100000,4,3
+1,1,5,TRUE,0.515,100000,4,3
+4,4,6,TRUE,0.183,100000,4,3

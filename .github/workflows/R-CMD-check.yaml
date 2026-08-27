@@ -18,7 +18,9 @@ jobs:
       matrix:
         config:
           - {os: ubuntu-latest, r: release}
+          - {os: ubuntu-latest, r: devel}
           - {os: macos-latest, r: release}
+          - {os: windows-latest, r: release}
 
     steps:
       - uses: actions/checkout@v5

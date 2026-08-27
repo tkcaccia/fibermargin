@@ -19,8 +19,10 @@ constexpr double kGoldenRatioConjugate = 0.6180339887498949;
 constexpr double kSqrtTwoConjugate = 0.4142135623730951;
 constexpr double kSqrtThreeConjugate = 0.7320508075688772;
 constexpr double kPi = 3.141592653589793238462643383279502884;
-constexpr int kViews2D = 7;
-constexpr int kViews3D = 9;
+// This is the smallest fixed atlas that improved accuracy and ARI across the
+// frozen CRC, DLPFC, and MERFISH panels in the atlas-size audit.
+constexpr int kViews2D = 9;
+constexpr int kViews3D = 12;
 // One fixed central transport range keeps the enclosure rule single-scale and
 // avoids a multiscale ladder in the public operator.
 constexpr std::array<double, 1> kScales = {5.0};
@@ -41,8 +43,8 @@ Settings parse_settings(const List& control) {
   }
   Settings settings;
   settings.threads = list_int(control, "threads", settings.threads);
-  if (settings.threads < 1 || settings.threads > 64) {
-    stop("FiberMargin threads must be between 1 and 64.");
+  if (settings.threads < 1) {
+    stop("FiberMargin threads must be positive.");
   }
   return settings;
 }
@@ -71,20 +73,41 @@ double median(std::vector<double> values) {
   return median_inplace(values);
 }
 
-std::vector<double> robust_unit_coordinates(
+struct CoordinateBlock {
+  std::vector<double> values;
+  int dimensions;
+};
+
+CoordinateBlock robust_unit_coordinates(
     const NumericMatrix& xy, const std::vector<int>& rows) {
-  const int dimensions = xy.ncol();
+  std::vector<int> active_axes;
+  for (int axis = 0; axis < xy.ncol(); ++axis) {
+    double low = xy(rows.front(), axis);
+    double high = low;
+    for (std::size_t i = 1; i < rows.size(); ++i) {
+      low = std::min(low, xy(rows[i], axis));
+      high = std::max(high, xy(rows[i], axis));
+    }
+    if (low < high) active_axes.push_back(axis);
+  }
+  const int dimensions = static_cast<int>(active_axes.size());
+  if (dimensions < 2) {
+    stop("Each sample needs at least two varying coordinate axes.");
+  }
   const int size = static_cast<int>(rows.size());
-  std::vector<double> output(static_cast<std::size_t>(size) * dimensions);
+  CoordinateBlock output;
+  output.dimensions = dimensions;
+  output.values.resize(static_cast<std::size_t>(size) * dimensions);
   for (int dimension = 0; dimension < dimensions; ++dimension) {
+    const int axis = active_axes[dimension];
     std::vector<double> values(size);
-    for (int i = 0; i < size; ++i) values[i] = xy(rows[i], dimension);
+    for (int i = 0; i < size; ++i) values[i] = xy(rows[i], axis);
     const double low = quantile_linear(values, 0.01);
     const double high = quantile_linear(values, 0.99);
     const double span = std::max(high - low, 1e-12);
     for (int i = 0; i < size; ++i) {
-      const double value = (xy(rows[i], dimension) - low) / span;
-      output[static_cast<std::size_t>(i) * dimensions + dimension] =
+      const double value = (xy(rows[i], axis) - low) / span;
+      output.values[static_cast<std::size_t>(i) * dimensions + dimension] =
         std::max(-0.1, std::min(1.1, value));
     }
   }
@@ -643,9 +666,9 @@ SampleResult refine_sample(const std::vector<double>& coordinates,
       }
       variance /= static_cast<double>(charts);
       full_margin[index] = mean;
-      // This fixed two-sided chart-dispersion radius is twice the deterministic
-      // atlas deviation sqrt(sum((m_a - mean)^2)) / A, not a sampling SE.
-      full_dispersion[index] = 2.0 * std::sqrt(variance) /
+      // The admission scale is the empirical chart standard deviation divided
+      // by sqrt(A): one standard error across the fixed spatial atlas.
+      full_dispersion[index] = std::sqrt(variance) /
         std::sqrt(static_cast<double>(charts));
     }
   };
@@ -744,20 +767,38 @@ extern "C" SEXP _fibermargin_fiber_margin_cpp(SEXP xy_s, SEXP labels_s,
         std::unique(sample_levels.begin(), sample_levels.end()), sample_levels.end());
     }
   }
-  for (int sample : sample_levels) {
+  IntegerVector dimensions_used(sample_levels.size());
+  IntegerVector sample_sizes(sample_levels.size());
+  for (std::size_t sample_index = 0; sample_index < sample_levels.size(); ++sample_index) {
+    const int sample = sample_levels[sample_index];
     checkUserInterrupt();
     std::vector<int> rows;
     for (int i = 0; i < n; ++i) if (samples_r[i] == sample) rows.push_back(i);
+    sample_sizes[sample_index] = static_cast<int>(rows.size());
+    std::vector<int> local_levels;
+    local_levels.reserve(rows.size());
+    for (int row : rows) local_levels.push_back(labels_r[row] - 1);
+    std::sort(local_levels.begin(), local_levels.end());
+    local_levels.erase(
+      std::unique(local_levels.begin(), local_levels.end()), local_levels.end());
+    std::vector<int> global_to_local(classes, -1);
+    for (std::size_t local = 0; local < local_levels.size(); ++local) {
+      global_to_local[local_levels[local]] = static_cast<int>(local);
+    }
     std::vector<int> local_labels(rows.size());
-    for (std::size_t i = 0; i < rows.size(); ++i) local_labels[i] = labels_r[rows[i]] - 1;
-    const std::vector<double> coordinates =
+    for (std::size_t i = 0; i < rows.size(); ++i) {
+      local_labels[i] = global_to_local[labels_r[rows[i]] - 1];
+    }
+    const fiber_margin::CoordinateBlock coordinates =
       fiber_margin::robust_unit_coordinates(xy, rows);
+    dimensions_used[sample_index] = coordinates.dimensions;
     const fiber_margin::SampleResult result = fiber_margin::refine_sample(
-      coordinates, local_labels, dimensions, classes, settings);
+      coordinates.values, local_labels, coordinates.dimensions,
+      static_cast<int>(local_levels.size()), settings);
     for (std::size_t i = 0; i < rows.size(); ++i) {
       const int row = rows[i];
-      output[row] = result.labels[i] + 1;
-      candidate[row] = result.candidate[i] + 1;
+      output[row] = local_levels[result.labels[i]] + 1;
+      candidate[row] = local_levels[result.candidate[i]] + 1;
       margin_score[row] = result.margin_score[i];
       required[row] = result.required[i];
       dispersion[row] = result.dispersion[i];
@@ -771,7 +812,10 @@ extern "C" SEXP _fibermargin_fiber_margin_cpp(SEXP xy_s, SEXP labels_s,
     _["required"] = required,
     _["atlas_dispersion"] = dispersion,
     _["isolation"] = isolation,
-    _["changed"] = output != labels_r
+    _["changed"] = output != labels_r,
+    _["sample_codes"] = wrap(sample_levels),
+    _["dimensions_used"] = dimensions_used,
+    _["sample_sizes"] = sample_sizes
   );
   END_RCPP
 }

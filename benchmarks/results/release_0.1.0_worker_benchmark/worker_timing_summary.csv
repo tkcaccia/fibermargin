@@ -1,0 +1,3 @@
+"workers_requested","workers_used","observations","specimens","dimensions","elapsed_seconds","speedup_vs_one"
+1,1,100000,4,3,0.518,1
+4,4,100000,4,3,0.183,2.83060109289618

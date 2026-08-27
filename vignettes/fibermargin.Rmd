@@ -1,8 +1,12 @@
 ---
-title: "FiberMargin"
-output: rmarkdown::html_vignette
+title: "FiberMargin: Complete User Guide"
+author: "FiberMargin authors"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    number_sections: true
 vignette: >
-  %\VignetteIndexEntry{fibermargin}
+  %\VignetteIndexEntry{FiberMargin: Complete User Guide}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -13,142 +17,809 @@ knitr::opts_chunk$set(
   comment = "#>",
   warning = FALSE,
   message = FALSE,
-  fig.width = 8,
-  fig.height = 3
+  fig.width = 7.2,
+  fig.height = 3.2,
+  fig.align = "center",
+  dpi = 110
 )
 library(fibermargin)
+
+field_palette <- function(labels) {
+  classes <- sort(unique(as.character(labels[!is.na(labels)])))
+  stats::setNames(grDevices::hcl.colors(length(classes), "Dark 3"), classes)
+}
+
+plot_field <- function(xy, labels, main = NULL, cex = 0.55) {
+  palette <- field_palette(labels)
+  graphics::plot(
+    xy[, 1L], xy[, 2L],
+    col = palette[as.character(labels)],
+    pch = 16, cex = cex, asp = 1,
+    xlab = colnames(xy)[1L], ylab = colnames(xy)[2L],
+    main = main
+  )
+}
+
+plot_mask <- function(mask, main = NULL, palette = field_palette(mask)) {
+  values <- matrix(
+    match(as.character(mask), names(palette)),
+    nrow = nrow(mask), ncol = ncol(mask)
+  )
+  graphics::image(
+    seq_len(nrow(mask)), seq_len(ncol(mask)), values,
+    col = unname(palette), useRaster = TRUE, axes = FALSE,
+    xlab = "", ylab = "", main = main, asp = 1
+  )
+}
 ```
 
-## What FiberMargin does
+# Purpose and input contract
 
-FiberMargin is a deterministic, training-free routine that repairs noisy categorical
-labels using only spatial coordinates and observed class labels.
+FiberMargin repairs a categorical field from spatial coordinates and the observed
+labels alone. It does not use expression values, image intensities, logits,
+probabilities, clean anchors, or reference labels during repair.
 
-- `xy`: 2D/3D coordinates, one row per spot.
-- `labels`: observed class labels.
-- `samples`: optional section/specimen identifier. Different specimens are refined
-  independently.
-- `workers`: optional CPU budget.
+There are two fixed computational routes:
 
-The returned value is a factor with the same levels and row names as `labels`, and
-attributes with pointwise diagnostics.
+- Multiclass fields use the two-sided path-enclosure operator.
+- Binary fields use a distinct fixed nearest-neighbour ballot specialization.
 
-## Quick start
+The package accepts irregular 2D or 3D coordinates through
+`refine_spatial_labels()` and regular pixel or voxel arrays through
+`clean_categorical_mask()`. Multiple specimens can be supplied in one call and
+are always processed independently.
+
+The package exports 14 functions:
+
+```{r api-index}
+api <- data.frame(
+  Function = c(
+    "refine_spatial_labels", "clean_categorical_mask",
+    "corrupt_categorical_mask", "evaluate_mask_cleaning",
+    "spatial_benchmark", "evaluate_spatial_refinement",
+    "benchmark_spatial_refiners", "simulate_spatial_clusters",
+    "simulate_spatial_domains", "simulate_complex_spatial_domains",
+    "simulate_gradient_regions", "simulate_volumetric_domains",
+    "available_spatial_benchmarks", "load_spatial_benchmark"
+  ),
+  Purpose = c(
+    "Refine labels at irregular 2D/3D coordinates",
+    "Clean a categorical matrix or 3D array",
+    "Generate reproducible mask errors",
+    "Score a cleaned mask",
+    "Validate and package a benchmark",
+    "Score coordinate-indexed refinement",
+    "Run identical inputs through multiple methods",
+    "Simulate separated Gaussian-like clusters",
+    "Simulate structured 2D or curved-layer 3D domains",
+    "Simulate held-out complex geometries",
+    "Simulate the A-B-C gradient design",
+    "Simulate variable-density 3D domains",
+    "List real-data availability and licensing",
+    "Load a bundled frozen real-data scenario"
+  ),
+  stringsAsFactors = FALSE
+)
+knitr::kable(api)
+```
+
+# Quick start
+
+The gradient simulator creates four ordered areas with reference classes
+`A`, `B`, `B`, and `C`. Its observed labels contain controlled minority mixtures.
 
 ```{r quick-start}
-sim <- simulate_gradient_regions(
-  n = 4000L,
+gradient <- simulate_gradient_regions(
+  n = 1200L,
   minority = 0.10,
+  dimensions = 2L,
   samples = 2L,
+  density_profile = "moderate",
   seed = 12L
 )
 
-refined <- refine_spatial_labels(
-  xy = sim$xy,
-  labels = sim$labels,
-  samples = sim$samples,
+refined_gradient <- refine_spatial_labels(
+  xy = gradient$xy,
+  labels = gradient$labels,
+  samples = gradient$samples,
   workers = 1L
 )
 
+gradient_metrics <- evaluate_spatial_refinement(
+  truth = gradient$truth,
+  initial = gradient$labels,
+  refined = refined_gradient,
+  boundary = gradient$boundary,
+  regions = gradient$area,
+  sparse = gradient$sparse,
+  method = "FiberMargin"
+)
+
+gradient_metrics[, c(
+  "method", "initial_accuracy", "accuracy", "ari",
+  "correction_recall", "damage_rate"
+)]
+```
+
+```{r quick-start-plot, fig.height=3.0}
+old_par <- graphics::par(mfrow = c(1, 3), mar = c(3, 3, 2, 1))
+plot_field(gradient$xy, gradient$truth, "Reference", cex = 0.35)
+plot_field(gradient$xy, gradient$labels, "Observed", cex = 0.35)
+plot_field(gradient$xy, refined_gradient, "FiberMargin", cex = 0.35)
+graphics::par(old_par)
+```
+
+# Refine irregular coordinates
+
+## `refine_spatial_labels()`
+
+```r
+refine_spatial_labels(xy, labels, samples = NULL, workers = NULL)
+```
+
+`xy` must be a finite numeric matrix with two or three columns. `labels` must
+contain one non-missing categorical value per row. `samples` is optional and
+defines independent coordinate systems. Integer, character, and factor specimen
+identifiers are accepted. `workers = NULL` uses a conservative automatic CPU
+budget; set a positive integer for an explicit total budget.
+
+Effective dimensionality is determined separately within every specimen.
+Zero-range axes are removed before refinement. At least two varying axes must
+remain, so constant `z` reduces a three-column specimen to 2D while variable
+`z` remains part of a genuine 3D analysis.
+
+The output is a factor with the input levels and row names. Seven pointwise audit
+attributes are attached:
+
+```{r diagnostics}
+diagnostic_names <- c(
+  "candidate", "margin_score", "required", "repair_margin",
+  "atlas_dispersion", "isolation", "changed"
+)
+
+diagnostics <- data.frame(
+  observed = head(as.character(gradient$labels), 8L),
+  refined = head(as.character(refined_gradient), 8L),
+  candidate = head(as.character(attr(refined_gradient, "candidate")), 8L),
+  margin_score = head(attr(refined_gradient, "margin_score"), 8L),
+  required = head(attr(refined_gradient, "required"), 8L),
+  repair_margin = head(attr(refined_gradient, "repair_margin"), 8L),
+  changed = head(attr(refined_gradient, "changed"), 8L)
+)
+diagnostics
+
+setdiff(diagnostic_names, names(attributes(refined_gradient)))
+```
+
+`candidate` is the locally preferred class. `margin_score` is its support
+contrast, `required` is the local admission barrier, and `repair_margin` is
+`margin_score - required`. These are deterministic scores, not calibrated
+probabilities. `atlas_dispersion` describes disagreement across path charts,
+`isolation` protects locally isolated observations, and `changed` identifies
+accepted edits.
+
+Eight summary attributes provide a specimen-level audit:
+
+```{r summary-diagnostics}
+summary_names <- c(
+  "workers", "dimensions_used", "labels_changed", "changed_fraction",
+  "classes_before", "classes_after", "removed_classes", "sample_sizes"
+)
+lapply(summary_names, function(name) attr(refined_gradient, name))
+```
+
+`dimensions_used`, `labels_changed`, `changed_fraction`, and `sample_sizes` are
+named vectors. The three class summaries are named lists. An unused factor level
+is not counted as a class present before refinement. FiberMargin does not impose
+class preservation; if an observed class disappears, it is listed in
+`removed_classes`.
+
+The output contract can be checked directly:
+
+```{r diagnostic-contract}
+identical(
+  as.logical(attr(refined_gradient, "changed")),
+  as.character(refined_gradient) != as.character(gradient$labels)
+)
+attr(refined_gradient, "workers")
+```
+
+## Binary specialization
+
+With exactly two observed classes, the function uses the fixed local ballot
+instead of the multiclass path enclosure.
+
+```{r binary-specialization}
+binary_data <- simulate_spatial_clusters(
+  n = 700L,
+  dimensions = 2L,
+  k = 2L,
+  samples = 1L,
+  noise = 0.12,
+  seed = 21L
+)
+binary_refined <- refine_spatial_labels(
+  binary_data$xy, binary_data$labels,
+  samples = binary_data$samples, workers = 1L
+)
+
 c(
-  input_accuracy = mean(sim$labels == sim$truth),
-  refined_accuracy = mean(refined == sim$truth),
-  changed = mean(refined != sim$labels)
+  input_accuracy = mean(binary_data$labels == binary_data$truth),
+  refined_accuracy = mean(binary_refined == binary_data$truth),
+  changed_fraction = mean(binary_refined != binary_data$labels)
 )
 ```
 
-## Diagnostics
+For this route, `isolation` is one and `atlas_dispersion` is zero because no
+multiclass path atlas is used.
 
-```{r diagnostics}
-str(
-  list(
-    candidate = head(attr(refined, "candidate")),
-    changed = head(attr(refined, "changed")),
-    repair_margin = head(attr(refined, "repair_margin"))
+## Effective 2D and genuine 3D coordinates
+
+A constant third axis is removed within the specimen, producing the same labels
+and every same pointwise diagnostic as the 2D call.
+
+```{r constant-z}
+flat_2d <- refine_spatial_labels(
+  gradient$xy, gradient$labels, gradient$samples, workers = 1L
+)
+flat_3d <- refine_spatial_labels(
+  cbind(gradient$xy, z = 0), gradient$labels,
+  gradient$samples, workers = 1L
+)
+identical(flat_2d, flat_3d)
+attr(flat_3d, "dimensions_used")
+```
+
+For variable `z`, all three coordinates participate in chart construction and
+distance calculations.
+
+```{r genuine-3d}
+volume_example <- simulate_volumetric_domains(
+  n = 1800L,
+  shape = "folded_layers",
+  samples = 2L,
+  noise = 0.18,
+  seed = 23L
+)
+volume_refined <- refine_spatial_labels(
+  volume_example$xy, volume_example$labels,
+  volume_example$samples, workers = 2L
+)
+attr(volume_refined, "dimensions_used")
+```
+
+## Multiple specimens
+
+Specimen identifiers prevent evidence from crossing tissue or section boundaries.
+Numeric coordinates may overlap completely because each specimen has its own
+coordinate system. The combined result is equivalent to refining each specimen
+separately and is restored to the original row order.
+
+```{r specimen-isolation}
+source_rows <- which(gradient$samples == levels(gradient$samples)[1L])
+overlapping_xy <- rbind(
+  gradient$xy[source_rows, , drop = FALSE],
+  gradient$xy[source_rows, , drop = FALSE]
+)
+overlapping_labels <- factor(
+  rep(as.character(gradient$labels[source_rows]), 2L),
+  levels = levels(gradient$labels)
+)
+overlapping_samples <- rep(
+  c("section_1", "section_2"), each = length(source_rows)
+)
+joint <- refine_spatial_labels(
+  overlapping_xy, overlapping_labels,
+  samples = overlapping_samples, workers = 2L
+)
+
+separate <- unsplit(
+  lapply(split(seq_len(nrow(overlapping_xy)), overlapping_samples), function(rows) {
+    refine_spatial_labels(
+      overlapping_xy[rows, , drop = FALSE],
+      overlapping_labels[rows],
+      workers = 1L
+    )
+  }),
+  overlapping_samples
+)
+
+identical(as.character(joint), as.character(separate))
+```
+
+## Deterministic CPU use
+
+`workers` is one total native budget, not workers per specimen. Specimens reuse
+the budget and native stages do not create nested pools. The implementation uses
+standard C++ threads on macOS, Linux, and Windows. Changing `workers` changes
+execution only, not labels or diagnostics.
+
+```{r worker-determinism, eval=FALSE}
+one_worker <- refine_spatial_labels(
+  gradient$xy, gradient$labels, gradient$samples, workers = 1L
+)
+four_workers <- refine_spatial_labels(
+  gradient$xy, gradient$labels, gradient$samples, workers = 4L
+)
+attr(one_worker, "workers") <- NULL
+attr(four_workers, "workers") <- NULL
+identical(one_worker, four_workers)
+```
+
+# Clean categorical masks
+
+## `corrupt_categorical_mask()`
+
+This function creates reproducible test errors in a reference matrix or 3D array.
+Available mechanisms are:
+
+- `"impulse"`: independently scattered substitutions.
+- `"boundary"`: substitutions concentrated near class boundaries.
+- `"patch"`: one coherent overwritten spatial patch.
+
+Every reference class retains at least one uncorrupted exemplar.
+
+```{r construct-mask}
+mask_size <- 48L
+mask_grid <- expand.grid(row = seq_len(mask_size), column = seq_len(mask_size))
+radius <- sqrt(
+  (mask_grid$row - (mask_size + 1) / 2)^2 +
+    (mask_grid$column - (mask_size + 1) / 2)^2
+)
+
+reference_mask <- matrix("background", mask_size, mask_size)
+reference_mask[radius < 17] <- "ring"
+reference_mask[radius < 10] <- "core"
+reference_mask[1:4, 1:4] <- NA_character_
+
+mask_corruptions <- lapply(
+  c("impulse", "boundary", "patch"),
+  function(mechanism) {
+    corrupt_categorical_mask(
+      reference_mask, mechanism = mechanism,
+      rate = 0.15, seed = 100L
+    )
+  }
+)
+names(mask_corruptions) <- c("impulse", "boundary", "patch")
+
+vapply(
+  mask_corruptions,
+  function(x) mean(x != reference_mask, na.rm = TRUE),
+  numeric(1L)
+)
+```
+
+## `clean_categorical_mask()`
+
+```r
+clean_categorical_mask(mask, samples = NULL, workers = NULL)
+```
+
+The function preserves dimensions, dimnames, storage type, and `NA` void cells.
+It attaches diagnostic arrays with the same dimensions as the mask.
+
+```{r clean-mask}
+initial_mask <- mask_corruptions$boundary
+cleaned_mask <- clean_categorical_mask(initial_mask, workers = 1L)
+
+c(
+  void_cells_preserved = all(is.na(cleaned_mask) == is.na(initial_mask)),
+  changed_cells = sum(attr(cleaned_mask, "changed"), na.rm = TRUE)
+)
+dim(attr(cleaned_mask, "repair_margin"))
+```
+
+```{r mask-plot, fig.height=2.7}
+mask_colors <- field_palette(reference_mask)
+old_par <- graphics::par(mfrow = c(1, 3), mar = c(1, 1, 2, 1))
+plot_mask(reference_mask, "Reference", mask_colors)
+plot_mask(initial_mask, "Boundary corruption", mask_colors)
+plot_mask(cleaned_mask, "FiberMargin", mask_colors)
+graphics::par(old_par)
+```
+
+A sample array can isolate sections inside one mask:
+
+```{r sampled-mask, eval=FALSE}
+mask_samples <- matrix(
+  ifelse(col(reference_mask) <= mask_size / 2, "left", "right"),
+  nrow = mask_size, ncol = mask_size
+)
+cleaned_by_section <- clean_categorical_mask(
+  initial_mask, samples = mask_samples, workers = 2L
+)
+```
+
+The same API accepts a three-dimensional voxel array:
+
+```{r voxel-mask, eval=FALSE}
+voxel_reference <- array("A", dim = c(20, 20, 8))
+voxel_reference[, 8:14, ] <- "B"
+voxel_reference[, 15:20, ] <- "C"
+voxel_initial <- corrupt_categorical_mask(
+  voxel_reference, mechanism = "boundary", rate = 0.10, seed = 9L
+)
+voxel_cleaned <- clean_categorical_mask(voxel_initial, workers = 2L)
+```
+
+## `evaluate_mask_cleaning()`
+
+Mask evaluation reports global recovery, ARI, class recall, correction and damage,
+mean and worst IoU, Dice, boundary IoU, and rare-class IoU.
+
+```{r evaluate-mask}
+mask_metrics <- evaluate_mask_cleaning(
+  reference = reference_mask,
+  initial = initial_mask,
+  cleaned = cleaned_mask,
+  method = "FiberMargin"
+)
+
+mask_metrics[, c(
+  "method", "initial_accuracy", "accuracy", "ari",
+  "mean_iou", "mean_boundary_iou", "rare_class_iou",
+  "correction_recall", "damage_rate"
+)]
+```
+
+Accuracy obeys the exact repair-damage decomposition
+
+```{r repair-damage-identity}
+with(
+  mask_metrics,
+  c(
+    reported = accuracy,
+    decomposed = initial_accuracy * (1 - damage_rate) +
+      (1 - initial_accuracy) * correction_recall,
+    numerical_error = repair_identity_error
   )
 )
 ```
 
-- `candidate`: local best candidate class at each spot.
-- `margin_score`: local support contrast for the candidate.
-- `required`: adaptive acceptance threshold.
-- `repair_margin`: `margin_score - required`; accepted changes have non-negative
-  margin.
-- `atlas_dispersion`: directional view disagreement.
-- `isolation`: local isolation protection factor.
-- `changed`: whether the output label differs from the input label.
+# Build and evaluate benchmark objects
 
-## Clean a categorical mask
+## `spatial_benchmark()`
 
-For 2D masks and 3D arrays, mask cleaning uses the same coordinates-only
-refiner. Missing cells are preserved.
+Use `spatial_benchmark()` to validate custom coordinates and align all optional
+evaluation strata. Reference labels are stored for evaluation and are not passed
+to the repair function.
 
-```{r clean-mask}
-truth <- matrix(rep(c("background", "region"), each = 3200L), nrow = 80)
-noisy <- corrupt_categorical_mask(
-  truth,
-  mechanism = "boundary",
-  rate = 0.15,
-  seed = 19L
+```{r spatial-benchmark}
+custom_benchmark <- spatial_benchmark(
+  xy = gradient$xy,
+  labels = gradient$labels,
+  truth = gradient$truth,
+  samples = gradient$samples,
+  boundary = gradient$boundary,
+  regions = gradient$area,
+  sparse = gradient$sparse,
+  name = "two_gradient_tissues",
+  metadata = list(seed = 12L, purpose = "vignette")
 )
-cleaned <- clean_categorical_mask(noisy, workers = 1L)
 
-evaluate_mask_cleaning(
-  reference = truth,
-  initial = noisy,
-  cleaned = cleaned,
-  method = "FiberMargin"
-)
+class(custom_benchmark)
+names(custom_benchmark)
 ```
 
-## Benchmark helper
+`boundary` and `sparse` are optional logical vectors. If `sparse` is omitted but
+`regions` is supplied, evaluation uses the least frequent region as the sparse
+stratum and the most frequent region as the dense stratum.
 
-```{r benchmark-example, eval=FALSE}
-bench <- simulate_spatial_domains(
-  n = 6000L,
-  pattern = "jagged_stripes",
-  noise = 0.20,
-  samples = 2L,
-  seed = 5L
+## `evaluate_spatial_refinement()`
+
+This lower-level evaluator accepts aligned vectors and optional evaluation masks.
+
+```{r evaluate-spatial}
+manual_metrics <- evaluate_spatial_refinement(
+  truth = custom_benchmark$truth,
+  initial = custom_benchmark$labels,
+  refined = refined_gradient,
+  boundary = custom_benchmark$boundary,
+  regions = custom_benchmark$regions,
+  sparse = custom_benchmark$sparse,
+  elapsed = 0,
+  method = "FiberMargin"
 )
 
-benchmark_spatial_refiners(
-  bench,
+manual_metrics[, c(
+  "accuracy", "accuracy_gain", "ari", "macro_recall", "worst_recall",
+  "boundary_accuracy", "sparse_region_accuracy",
+  "correction_recall", "damage_rate", "changed_precision"
+)]
+```
+
+Important measures are:
+
+- `accuracy` and `ari`: global recovery.
+- `correction_recall`: fraction of initially wrong labels repaired.
+- `damage_rate`: fraction of initially correct labels made wrong.
+- `changed_precision`: fraction of edited locations correct after repair.
+- `macro_recall` and `worst_recall`: class-balance diagnostics.
+- `boundary_accuracy` and `sparse_region_accuracy`: difficult-stratum outcomes.
+
+## `benchmark_spatial_refiners()`
+
+A method is any function that accepts `xy` and `labels`; it may also accept
+`samples` or `...`. Every method receives identical input. The function accepts
+one benchmark or a named list of benchmarks.
+
+```{r benchmark-refiners}
+jagged_small <- simulate_spatial_domains(
+  n = 600L,
+  pattern = "jagged_stripes",
+  k = 4L,
+  noise = 0.18,
+  noise_type = "boundary",
+  seed = 31L
+)
+
+comparison <- benchmark_spatial_refiners(
+  data = list(
+    gradient = custom_benchmark,
+    jagged = jagged_small
+  ),
   methods = list(
-    FiberMargin = refine_spatial_labels,
-    InitialOnly = function(xy, labels, ...) labels
+    FiberMargin = function(xy, labels, samples = NULL) {
+      refine_spatial_labels(xy, labels, samples, workers = 1L)
+    },
+    IdentityExample = function(xy, labels, ...) labels
   ),
   include_initial = TRUE,
-  seed = 1L
+  seed = 5L,
+  on_error = "stop"
 )
+
+comparison[, c(
+  "dataset", "method", "accuracy", "ari",
+  "correction_recall", "damage_rate", "seconds"
+)]
 ```
 
-## Real-data flow
+Use `on_error = "record"` in long benchmark batches to retain a row containing
+the error message instead of stopping the entire run.
 
-```{r real-data}
-available_spatial_benchmarks()
-dlpfc <- load_spatial_benchmark("dlpfc", scenario = 1L)
+# Simulation functions
 
-refined <- refine_spatial_labels(
-  dlpfc$xy,
-  dlpfc$labels,
-  samples = dlpfc$samples,
-  workers = 2L
+Every simulator returns a `spatial_refinement_benchmark`-compatible list with
+`xy`, noisy `labels`, reference `truth`, and `samples`. Most also include
+`boundary`, `sparse`, region identifiers, and scenario metadata.
+
+## `simulate_spatial_clusters()`
+
+This is the simplest geometry: separated Gaussian-like clusters in two or three
+dimensions. It is useful for smoke tests and binary-specialization examples.
+
+```{r simulate-clusters}
+cluster_sim <- simulate_spatial_clusters(
+  n = 600L,
+  dimensions = 3L,
+  k = 4L,
+  samples = 2L,
+  noise = 0.10,
+  seed = 2L
+)
+c(dimensions = ncol(cluster_sim$xy), classes = nlevels(cluster_sim$truth))
+table(cluster_sim$samples)
+```
+
+## `simulate_spatial_domains()`
+
+This simulator covers structured tissue geometries, corruption types, feature
+widths, density profiles, and multiple specimens.
+
+Available patterns are `jagged_stripes`, `wavy_layers`, `rings`, `spiral`,
+`branching`, `lobes`, `islands`, `disconnected`, `thin_layers`, `intermixed`,
+and `layers3d`. Only `layers3d` uses three dimensions. Corruption can be
+`random`, `boundary`, `patch`, or `region`. Density can be `uniform`,
+`moderate`, `strong`, `extreme`, `hotspot`, or a positive weight per class.
+
+```{r simulate-domains}
+domain_sim <- simulate_spatial_domains(
+  n = 800L,
+  pattern = "thin_layers",
+  k = 5L,
+  noise = 0.20,
+  dimensions = 2L,
+  samples = 2L,
+  noise_type = "boundary",
+  feature_scale = 0.8,
+  density_profile = "strong",
+  seed = 3L
+)
+table(domain_sim$truth)
+```
+
+## `simulate_complex_spatial_domains()`
+
+This held-out geometry family stresses junctions, narrow channels, non-convex
+boundaries, and severe class-density imbalance. Shapes are `voronoi_mosaic`,
+`radial_sectors`, `checkerboard_junctions`, `tubular_network`,
+`braided_channels`, and `shells_3d`.
+
+```{r simulate-complex}
+complex_sim <- simulate_complex_spatial_domains(
+  n = 700L,
+  shape = "tubular_network",
+  density_profile = "extreme",
+  noise_type = "patch",
+  noise = 0.20,
+  samples = 1L,
+  k = 5L,
+  seed = 4L
+)
+c(dimensions = ncol(complex_sim$xy), observations = nrow(complex_sim$xy))
+```
+
+## `simulate_gradient_regions()`
+
+This function generated the quick-start object. It supports 2D or 3D coordinates,
+multiple tissues, curved boundaries, and custom area-density weights.
+
+```{r simulate-gradient-custom}
+gradient_3d <- simulate_gradient_regions(
+  n = 700L,
+  minority = 0.05,
+  dimensions = 3L,
+  samples = 2L,
+  seed = 5L,
+  curvature = 0.06,
+  density_profile = c(1, 2, 0.5, 3)
+)
+table(gradient_3d$area, gradient_3d$truth)
+```
+
+## `simulate_volumetric_domains()`
+
+This is the dedicated 3D stress-test generator. Available shapes are
+`concentric_shells`, `warped_ellipsoids`, `toroidal_compartments`,
+`folded_layers`, `thin_folded_sheets`, `branching_tubes`,
+`disconnected_volumes`, and `helical_channels`.
+
+Acquisition can be `uniform`, `class_imbalanced`, or `irregular_z`; corruption
+can be `random`, `boundary`, `patch`, or `region`.
+
+```{r simulate-volume}
+volume_sim <- simulate_volumetric_domains(
+  n = 700L,
+  shape = "folded_layers",
+  acquisition = "class_imbalanced",
+  noise_type = "boundary",
+  noise = 0.20,
+  k = 5L,
+  samples = 2L,
+  seed = 6L
 )
 
+c(
+  dimensions = ncol(volume_sim$xy),
+  observations = nrow(volume_sim$xy),
+  samples = nlevels(volume_sim$samples)
+)
+volume_sim$region_counts
+```
+
+```{r simulator-gallery, fig.height=5.8}
+old_par <- graphics::par(mfrow = c(2, 2), mar = c(3, 3, 2, 1))
+plot_field(cluster_sim$xy, cluster_sim$truth, "Spatial clusters", cex = 0.45)
+plot_field(domain_sim$xy, domain_sim$truth, "Thin layers", cex = 0.45)
+plot_field(complex_sim$xy, complex_sim$truth, "Tubular network", cex = 0.45)
+plot_field(volume_sim$xy, volume_sim$truth, "3D folded layers: x-y", cex = 0.45)
+graphics::par(old_par)
+```
+
+# Bundled real benchmarks
+
+## `available_spatial_benchmarks()`
+
+Always inspect availability and licensing before requesting a real dataset:
+
+```{r available-benchmarks}
+available_spatial_benchmarks()
+```
+
+DLPFC and CRC are bundled as coordinate-and-label derivatives. Expression
+matrices and tissue images are excluded. MERFISH is listed for provenance but
+cannot be redistributed with the package because the derived annotation does not
+have an explicit redistribution license.
+
+## `load_spatial_benchmark()`
+
+Load a bundled scenario by integer position:
+
+```{r load-dlpfc}
+dlpfc_case <- load_spatial_benchmark("dlpfc", scenario = 1L)
+c(
+  observations = nrow(dlpfc_case$xy),
+  classes = nlevels(dlpfc_case$truth),
+  specimens = nlevels(dlpfc_case$samples),
+  input_accuracy = mean(dlpfc_case$labels == dlpfc_case$truth)
+)
+dlpfc_case$scenario
+```
+
+Scenario identifiers are also accepted:
+
+```{r load-crc, eval=FALSE}
+crc_case <- load_spatial_benchmark(
+  "crc", scenario = "CRC_random_25_r1"
+)
+crc_refined <- refine_spatial_labels(
+  crc_case$xy, crc_case$labels,
+  samples = crc_case$samples,
+  workers = 4L
+)
 evaluate_spatial_refinement(
-  truth = dlpfc$truth,
-  initial = dlpfc$labels,
-  refined = refined,
-  boundary = dlpfc$boundary,
-  sparse = dlpfc$sparse,
+  crc_case$truth, crc_case$labels, crc_refined,
+  boundary = crc_case$boundary,
+  sparse = crc_case$sparse,
   method = "FiberMargin"
 )
 ```
 
-## Practical notes
+The legacy dataset name `"colorectal"` is accepted as an alias for `"crc"`.
+Calling `load_spatial_benchmark("merfish")` intentionally reports why that
+dataset is not bundled.
 
-- Keep defaults unless you have a strong reason to modify internal options.
-- Use `workers` when processing many independent specimens.
-- Report both aggregate scores (`accuracy`, `ari`) and failure-mode scores
-  (`damage_rate`, `correction_recall`, `boundary_accuracy`, `sparse_region_accuracy`).
+# End-to-end analysis template
+
+The following pattern can be adapted to a real coordinate-indexed annotation:
+
+```{r end-to-end-template, eval=FALSE}
+# One row per spatial location.
+xy <- as.matrix(my_data[, c("x", "y")])
+labels <- factor(my_data$annotation)
+samples <- factor(my_data$section_id)
+
+# Repair does not receive the reference labels.
+refined <- refine_spatial_labels(
+  xy = xy,
+  labels = labels,
+  samples = samples,
+  workers = 4L
+)
+
+# Inspect edits before replacing an annotation column.
+audit <- data.frame(
+  observed = labels,
+  candidate = attr(refined, "candidate"),
+  refined = refined,
+  changed = attr(refined, "changed"),
+  margin_score = attr(refined, "margin_score"),
+  required = attr(refined, "required"),
+  repair_margin = attr(refined, "repair_margin"),
+  isolation = attr(refined, "isolation")
+)
+
+my_data$fibermargin_annotation <- refined
+```
+
+When an independent reference is available, evaluate correction and damage
+together:
+
+```{r end-to-end-evaluation, eval=FALSE}
+evaluate_spatial_refinement(
+  truth = reference_labels,
+  initial = labels,
+  refined = refined,
+  boundary = boundary_locations,
+  sparse = rare_or_sparse_locations,
+  method = "FiberMargin"
+)
+```
+
+# Reporting checklist
+
+For reproducible analyses, report:
+
+1. Coordinate dimension and number of locations.
+2. Number of classes and independent specimens.
+3. Whether the binary specialization or multiclass enclosure mechanism was used.
+4. The `workers` budget and package version.
+5. Accuracy and ARI when a reference exists.
+6. Correction recall and damage rate together.
+7. Boundary, sparse-region, macro-recall, and worst-recall diagnostics when relevant.
+8. The unchanged input, repaired labels, and pointwise audit attributes.
+
+Function-level argument and return-value details remain available through
+`help(package = "fibermargin")` and `?function_name`.

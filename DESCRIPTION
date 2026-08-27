@@ -1,20 +1,19 @@
 Package: fibermargin
 Type: Package
-Title: FiberMargin Categorical Mask and Spatial Label Refinement
-Version: 0.1
+Title: Categorical Mask and Spatial Label Refinement
+Version: 0.1.0
 Authors@R: person(given = "Stefano", family = "Cacciatore",
-    email = "tkcaccia@gmail.com", role = c("aut", "cre"))
-Author: Stefano Cacciatore [aut, cre]
-Maintainer: Stefano Cacciatore <tkcaccia@gmail.com>
+    email = "tkcaccia@gmail.com", role = c("aut", "cre", "cph"))
 Description: Implements FiberMargin, a deterministic training-free operator for
     repairing categorical masks and spatial labels from coordinates and labels
-    alone. Binary labels use a fixed local dyadic-volume ballot. For multiclass
-    labels, rotated space-filling-curve charts, two-sided class enclosure at
-    one fixed geometric transport range, and a class-balanced,
-    isolation-protected chart-disagreement admission rule provide pointwise
-    repair decisions and audit scores. The C++
-    engine supports two- and three-dimensional coordinates; specimens and
-    independent atlas charts can share a deterministic CPU worker budget.
+    alone. Its primary multiclass operator uses rotated space-filling-curve
+    charts and two-sided class enclosure at one fixed geometric transport
+    range. A class-balanced, isolation-protected chart-disagreement rule
+    provides pointwise repair decisions and audit scores. An auxiliary
+    nearest-neighbour ballot handles binary masks. The C++
+    engine supports two- and three-dimensional coordinates, removes constant
+    axes independently within each specimen, and reuses one deterministic CPU
+    worker budget without nested process pools.
     Reproducible mask corruptions, planar and volumetric simulators,
     damage-aware evaluation, and compact licensed DLPFC and CRC benchmarks
     support assessment.
