@@ -7,7 +7,7 @@ clean_categorical_mask(mask, samples = NULL, workers = NULL)
 \arguments{
 \item{mask}{A categorical matrix or three-dimensional array. Missing cells are treated as void locations.}
 \item{samples}{Optional matrix or array with the same dimensions as \code{mask}. Different samples are cleaned independently.}
-\item{workers}{Optional CPU budget used across samples and independent spatial charts. \code{NULL} uses up to four physical cores when possible.}
+\item{workers}{Optional CPU budget used across samples and independent spatial charts. \code{NULL} uses up to two physical cores when possible.}
 }
 \value{A cleaned mask with the representation of \code{mask}. Pointwise
 attributes are \code{candidate}, \code{margin_score}, \code{required},

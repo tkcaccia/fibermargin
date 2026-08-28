@@ -22,6 +22,7 @@ knitr::opts_chunk$set(
   fig.align = "center",
   dpi = 110
 )
+options(width = 78)
 library(fibermargin)
 
 field_palette <- function(labels) {
@@ -715,13 +716,17 @@ graphics::par(old_par)
 Always inspect availability and licensing before requesting a real dataset:
 
 ```{r available-benchmarks}
-available_spatial_benchmarks()
+benchmark_status <- available_spatial_benchmarks()
+benchmark_status[c(
+  "dataset", "included", "observations", "classes", "scenarios"
+)]
 ```
 
 DLPFC and CRC are bundled as coordinate-and-label derivatives. Expression
 matrices and tissue images are excluded. MERFISH is listed for provenance but
 cannot be redistributed with the package because the derived annotation does not
-have an explicit redistribution license.
+have an explicit redistribution license. The complete object also records the
+`license`, `source`, and `note` fields for every dataset.
 
 ## `load_spatial_benchmark()`
 

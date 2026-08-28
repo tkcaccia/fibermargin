@@ -10,6 +10,7 @@ vignette: >
 This vignette summarizes the package interface for quick look-up while working in R.
 
 ```{r setup, include=FALSE}
+options(width = 78)
 library(fibermargin)
 ```
 

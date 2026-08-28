@@ -68,6 +68,16 @@ test_that("benchmark runner can record method errors", {
   expect_equal(results$n, 300)
 })
 
+test_that("benchmark runner requires a logical initial-label flag", {
+  sim <- simulate_gradient_regions(n = 300, seed = 403)
+  expect_error(
+    benchmark_spatial_refiners(
+      sim, list(identity = function(xy, labels) labels), include_initial = 1
+    ),
+    "`TRUE` or `FALSE`"
+  )
+})
+
 test_that("spatial benchmark constructor validates optional strata", {
   xy <- cbind(x = seq_len(5), y = seq_len(5))
   expect_error(

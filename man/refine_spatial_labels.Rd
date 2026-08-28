@@ -19,7 +19,8 @@ independently.}
 number of specimens, and results are independent of the worker count.}
 }
 \value{
-A factor with the levels and row names of `labels`. Attributes
+A factor with the levels and names of `labels`; when `labels` is
+  unnamed, row names from `xy` are used as names. Attributes
   `candidate`, `margin_score`, `required`, `repair_margin`,
   `atlas_dispersion`, `isolation`, and `changed` contain pointwise
   diagnostics. `margin_score` is a local support contrast on the internal
