@@ -61,7 +61,9 @@ refined <- refine_spatial_labels(xy, labels, samples, workers = 4)
 
 The same budget is reused as specimens are processed, so there is no nested
 process pool or worker multiplication. Native parallelism is available on macOS,
-Linux, and Windows. Changing `workers` does not change labels or diagnostics.
+Linux, and Windows. Changing `workers` does not change labels or inferential
+diagnostics; only the `workers` bookkeeping attribute records the effective
+budget.
 
 On an 8-core Apple M3, the release benchmark for 100,000 genuinely 3D locations
 in four specimens took a median 0.518 seconds with one worker and 0.183 seconds

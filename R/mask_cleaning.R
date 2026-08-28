@@ -11,7 +11,7 @@
 #' @param samples Optional matrix or array with the same dimensions as `mask`.
 #'   Different sample identifiers are cleaned independently.
 #' @param workers Optional CPU budget used across samples and independent
-#'   spatial charts. `NULL` uses up to four physical cores when possible.
+#'   spatial charts. `NULL` uses up to two physical cores when possible.
 #'
 #' @return A cleaned mask with the dimensions, dimnames, storage type, and void
 #'   locations of `mask`. Pointwise arrays are attached as attributes

@@ -233,7 +233,8 @@ benchmark_spatial_refiners <- function(
   if ("Initial" %in% names(methods)) {
     stop("`Initial` is reserved for the unrefined assignment.", call. = FALSE)
   }
-  if (length(include_initial) != 1L || is.na(include_initial)) {
+  if (!is.logical(include_initial) || length(include_initial) != 1L ||
+      is.na(include_initial)) {
     stop("`include_initial` must be `TRUE` or `FALSE`.", call. = FALSE)
   }
   seed <- as.integer(seed)
