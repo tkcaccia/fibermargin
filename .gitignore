@@ -26,21 +26,10 @@ openevolve_search/**/__pycache__/
 openevolve_search/*.pyc
 
 output/*
-!output/pdf/
-output/pdf/*
-!output/pdf/marginsvm-jmlr-submission.pdf
-!output/docx/
-output/docx/*
-!output/docx/marginsvm-jmlr-manuscript.docx
 
-manuscript/*.aux
-manuscript/*.bbl
-manuscript/*.blg
-manuscript/*.fdb_latexmk
-manuscript/*.fls
-manuscript/*.log
-manuscript/*.out
-manuscript/marginsvm-jmlr-submission.pdf
+# Manuscript, submission, and peer-review materials remain local only.
+manuscript/
+docs/jmlr_reviewer_report_single_method.md
 
 # Local development sweeps superseded by the frozen publication method.
 benchmarks/marginsvm_rare_crc_confirmation.R
