@@ -22,7 +22,6 @@ knitr::opts_chunk$set(
   fig.align = "center",
   dpi = 110
 )
-options(width = 78)
 library(fibermargin)
 
 field_palette <- function(labels) {
@@ -143,7 +142,8 @@ gradient_metrics[, c(
 ```
 
 ```{r quick-start-plot, fig.height=3.0}
-old_par <- graphics::par(mfrow = c(1, 3), mar = c(3, 3, 2, 1))
+old_par <- graphics::par(no.readonly = TRUE)
+graphics::par(mfrow = c(1, 3), mar = c(3, 3, 2, 1))
 plot_field(gradient$xy, gradient$truth, "Reference", cex = 0.35)
 plot_field(gradient$xy, gradient$labels, "Observed", cex = 0.35)
 plot_field(gradient$xy, refined_gradient, "FiberMargin", cex = 0.35)
@@ -413,7 +413,8 @@ dim(attr(cleaned_mask, "repair_margin"))
 
 ```{r mask-plot, fig.height=2.7}
 mask_colors <- field_palette(reference_mask)
-old_par <- graphics::par(mfrow = c(1, 3), mar = c(1, 1, 2, 1))
+old_par <- graphics::par(no.readonly = TRUE)
+graphics::par(mfrow = c(1, 3), mar = c(1, 1, 2, 1))
 plot_mask(reference_mask, "Reference", mask_colors)
 plot_mask(initial_mask, "Boundary corruption", mask_colors)
 plot_mask(cleaned_mask, "FiberMargin", mask_colors)
@@ -701,7 +702,8 @@ volume_sim$region_counts
 ```
 
 ```{r simulator-gallery, fig.height=5.8}
-old_par <- graphics::par(mfrow = c(2, 2), mar = c(3, 3, 2, 1))
+old_par <- graphics::par(no.readonly = TRUE)
+graphics::par(mfrow = c(2, 2), mar = c(3, 3, 2, 1))
 plot_field(cluster_sim$xy, cluster_sim$truth, "Spatial clusters", cex = 0.45)
 plot_field(domain_sim$xy, domain_sim$truth, "Thin layers", cex = 0.45)
 plot_field(complex_sim$xy, complex_sim$truth, "Tubular network", cex = 0.45)
@@ -747,7 +749,7 @@ Scenario identifiers are also accepted:
 
 ```{r load-crc, eval=FALSE}
 crc_case <- load_spatial_benchmark(
-  "crc", scenario = "CRC_random_25_r1"
+  "crc", scenario = "CRC_random_25_r1", seed = 1040001L
 )
 crc_refined <- refine_spatial_labels(
   crc_case$xy, crc_case$labels,

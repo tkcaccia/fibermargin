@@ -41,15 +41,19 @@ available_spatial_benchmarks <- function() {
 
 #' Load a bundled real spatial benchmark
 #'
-#' Loads one frozen corruption scenario from either the human dorsolateral
-#' prefrontal cortex (DLPFC) Visium benchmark or the colorectal cancer (CRC)
-#' Visium HD benchmark. The package contains coordinates and labels, not
-#' expression counts or histology images.
+#' Loads one stored corruption scenario from the human dorsolateral prefrontal
+#' cortex (DLPFC) Visium benchmark or generates one colorectal cancer (CRC)
+#' Visium HD corruption from its stored recipe. The package contains coordinates
+#' and labels, not expression counts or histology images.
 #'
 #' @param name Dataset name. `"dlpfc"` and `"crc"` are bundled. The legacy
 #'   `"colorectal"` alias is accepted for compatibility.
 #' @param scenario Scenario number or scenario identifier. Inspect the `design`
 #'   element of the corresponding data object for the complete design.
+#' @param seed Optional integer seed used when generating a CRC corruption.
+#'   The default `NULL` uses the current R random-number stream without setting
+#'   a seed. Supplying a value makes the generated CRC labels reproducible.
+#'   DLPFC scenarios already contain their corrupted labels and ignore `seed`.
 #'
 #' @return A `spatial_refinement_benchmark` ready for
 #'   [benchmark_spatial_refiners()].
@@ -58,11 +62,12 @@ available_spatial_benchmarks <- function() {
 #' dlpfc <- load_spatial_benchmark("dlpfc", scenario = 1)
 #' dim(dlpfc$xy)
 #' \donttest{
-#' crc <- load_spatial_benchmark("crc", "CRC_random_25_r1")
+#' crc <- load_spatial_benchmark("crc", "CRC_random_25_r1", seed = 1040001L)
 #' mean(crc$labels != crc$truth)
 #' }
 load_spatial_benchmark <- function(
-    name = c("dlpfc", "merfish", "crc", "colorectal"), scenario = 1L) {
+    name = c("dlpfc", "merfish", "crc", "colorectal"), scenario = 1L,
+    seed = NULL) {
   requested_name <- match.arg(name)
   name <- if (identical(requested_name, "colorectal")) "crc" else requested_name
   if (name == "merfish") {
@@ -99,7 +104,7 @@ load_spatial_benchmark <- function(
   initial_code <- if (name == "dlpfc") {
     source$initial[, scenario_index]
   } else {
-    .colorectal_corruption(source, scenario_index)
+    .colorectal_corruption(source, scenario_index, seed = seed)
   }
   sample_values <- if (name == "dlpfc") {
     source$samples
@@ -139,22 +144,19 @@ load_spatial_benchmark <- function(
   benchmark
 }
 
-.colorectal_corruption <- function(source, scenario_index) {
+.colorectal_corruption <- function(source, scenario_index, seed = NULL) {
   condition <- source$design[scenario_index, , drop = FALSE]
   n <- nrow(source$xy)
   classes <- length(source$levels)
   count <- min(n - 1L, as.integer(round(condition$noise * n)))
 
-  had_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
-  if (had_seed) old_seed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
-  on.exit({
-    if (had_seed) {
-      assign(".Random.seed", old_seed, envir = .GlobalEnv)
-    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
-      rm(".Random.seed", envir = .GlobalEnv)
+  if (!is.null(seed)) {
+    if (length(seed) != 1L || !is.numeric(seed) || !is.finite(seed) ||
+        seed < 0 || seed > .Machine$integer.max || seed != trunc(seed)) {
+      stop("`seed` must be `NULL` or one non-negative integer.", call. = FALSE)
     }
-  }, add = TRUE)
-  set.seed(1040000L + scenario_index)
+    set.seed(as.integer(seed))
+  }
   anchor_proximity <- as.numeric(!source$boundary)
 
   if (condition$mechanism == "random") {

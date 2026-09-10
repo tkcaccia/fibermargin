@@ -104,12 +104,9 @@ test_that("licensed DLPFC and CRC benchmarks are bundled", {
   expect_equal(mean(dlpfc$labels != dlpfc$truth), 2367 / 47329)
   expect_match(dlpfc$metadata$scenario_id, "DLPFC_")
 
-  set.seed(17)
-  old_seed <- .Random.seed
   crc <- load_spatial_benchmark(
-    "crc", scenario = "CRC_random_25_r1"
+    "crc", scenario = "CRC_random_25_r1", seed = 1040001L
   )
-  expect_identical(.Random.seed, old_seed)
   expect_s3_class(crc, "spatial_refinement_benchmark")
   expect_equal(dim(crc$xy), c(194541L, 2L))
   expect_equal(nlevels(crc$truth), 19L)
@@ -122,13 +119,25 @@ test_that("licensed DLPFC and CRC benchmarks are bundled", {
                    "Creative Commons Attribution 4.0 International (CC BY 4.0)")
   expect_identical(
     crc$labels,
-    load_spatial_benchmark("crc", "CRC_random_25_r1")$labels
+    load_spatial_benchmark(
+      "crc", "CRC_random_25_r1", seed = 1040001L
+    )$labels
   )
   expect_identical(
     crc$labels,
-    load_spatial_benchmark("colorectal", "CRC_random_25_r1")$labels
+    load_spatial_benchmark(
+      "colorectal", "CRC_random_25_r1", seed = 1040001L
+    )$labels
   )
-  difficult_crc <- load_spatial_benchmark("crc", scenario = 59L)
+  expect_false(identical(
+    crc$labels,
+    load_spatial_benchmark(
+      "crc", "CRC_random_25_r1", seed = 1040002L
+    )$labels
+  ))
+  difficult_crc <- load_spatial_benchmark(
+    "crc", scenario = 59L, seed = 1040059L
+  )
   expect_silent(fibermargin:::.validate_class_anchors(
     difficult_crc$truth, difficult_crc$labels,
     difficult_crc$samples
@@ -137,4 +146,10 @@ test_that("licensed DLPFC and CRC benchmarks are bundled", {
   expect_error(load_spatial_benchmark("merfish"), "not bundled")
   expect_error(load_spatial_benchmark("dlpfc", 100), "Unknown")
   expect_error(load_spatial_benchmark("crc", "missing"), "Unknown")
+  expect_error(
+    load_spatial_benchmark("crc", 1L, seed = NA_integer_), "seed"
+  )
+  expect_error(
+    load_spatial_benchmark("crc", 1L, seed = c(1L, 2L)), "seed"
+  )
 })

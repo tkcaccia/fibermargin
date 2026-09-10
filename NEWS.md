@@ -14,3 +14,5 @@
   reporting without imposing class preservation.
 * Added 2D, genuine 3D, multi-specimen, invariance, memory, and parallelism tests
   and expanded the README, vignette, reference documentation, and manuscript.
+* Removed persistent vignette option changes and replaced the internal fixed
+  CRC benchmark seed with the optional user-controlled `seed` argument.
