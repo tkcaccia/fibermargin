@@ -16,7 +16,6 @@ knitr::opts_chunk$set(
   fig.width = 8,
   fig.height = 3
 )
-options(width = 78)
 library(fibermargin)
 ```
 

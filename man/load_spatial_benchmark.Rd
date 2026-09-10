@@ -6,7 +6,8 @@
 \usage{
 load_spatial_benchmark(
   name = c("dlpfc", "merfish", "crc", "colorectal"),
-  scenario = 1L
+  scenario = 1L,
+  seed = NULL
 )
 }
 \arguments{
@@ -15,22 +16,27 @@ load_spatial_benchmark(
 
 \item{scenario}{Scenario number or scenario identifier. Inspect the `design`
 element of the corresponding data object for the complete design.}
+
+\item{seed}{Optional integer seed used when generating a CRC corruption.
+The default `NULL` uses the current R random-number stream without setting
+a seed. Supplying a value makes the generated CRC labels reproducible.
+DLPFC scenarios already contain their corrupted labels and ignore `seed`.}
 }
 \value{
 A `spatial_refinement_benchmark` ready for
   [benchmark_spatial_refiners()].
 }
 \description{
-Loads one frozen corruption scenario from either the human dorsolateral
-prefrontal cortex (DLPFC) Visium benchmark or the colorectal cancer (CRC)
-Visium HD benchmark. The package contains coordinates and labels, not
-expression counts or histology images.
+Loads one stored corruption scenario from the human dorsolateral prefrontal
+cortex (DLPFC) Visium benchmark or generates one colorectal cancer (CRC)
+Visium HD corruption from its stored recipe. The package contains coordinates
+and labels, not expression counts or histology images.
 }
 \examples{
 dlpfc <- load_spatial_benchmark("dlpfc", scenario = 1)
 dim(dlpfc$xy)
 \donttest{
-crc <- load_spatial_benchmark("crc", "CRC_random_25_r1")
+crc <- load_spatial_benchmark("crc", "CRC_random_25_r1", seed = 1040001L)
 mean(crc$labels != crc$truth)
 }
 }

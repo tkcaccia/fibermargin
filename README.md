@@ -193,7 +193,9 @@ inputs remain external. See
 `inst/extdata/REAL_DATA_LICENSES.md` for sources, attribution, and change notices.
 
 ```r
-crc <- load_spatial_benchmark("crc", "CRC_random_25_r1")
+crc <- load_spatial_benchmark(
+  "crc", "CRC_random_25_r1", seed = 1040001L
+)
 mean(crc$labels != crc$truth)
 ```
 

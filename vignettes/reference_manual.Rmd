@@ -10,7 +10,6 @@ vignette: >
 This vignette summarizes the package interface for quick look-up while working in R.
 
 ```{r setup, include=FALSE}
-options(width = 78)
 library(fibermargin)
 ```
 
@@ -105,8 +104,9 @@ attr(refined_joint, "sample_sizes")
 - `available_spatial_benchmarks()`  
   Lists bundled datasets and licensing information.
 
-- `load_spatial_benchmark(name, scenario)`  
-  Loads a bundled real scenario.
+- `load_spatial_benchmark(name, scenario, seed = NULL)`
+  Loads a bundled real scenario. For CRC, an optional user-supplied seed makes
+  the corruption generated from the stored recipe reproducible.
 
 ## Scoring glossary
 
