@@ -26,6 +26,7 @@ constexpr int kViews3D = 12;
 // One fixed central transport range keeps the enclosure rule single-scale and
 // avoids a multiscale ladder in the public operator.
 constexpr std::array<double, 1> kScales = {5.0};
+constexpr int kMaxWorkers = 64;
 
 struct Settings {
   int threads = 1;
@@ -43,8 +44,8 @@ Settings parse_settings(const List& control) {
   }
   Settings settings;
   settings.threads = list_int(control, "threads", settings.threads);
-  if (settings.threads < 1) {
-    stop("FiberMargin threads must be positive.");
+  if (settings.threads < 1 || settings.threads > kMaxWorkers) {
+    stop("FiberMargin threads must be between 1 and 64.");
   }
   return settings;
 }
@@ -213,10 +214,22 @@ std::uint64_t hilbert_code(const double* coordinate, int dimensions, int bits = 
 
 struct Geometry {
   std::vector<int> order;
+  std::vector<std::pair<int, int>> coincident;
   std::vector<double> isolation;
   std::vector<double> forward_action;
   std::vector<double> reverse_action;
 };
+
+int compare_coordinates(const std::vector<double>& coordinates, int dimensions,
+                        int left, int right) {
+  const auto* a = coordinates.data() + static_cast<std::size_t>(left) * dimensions;
+  const auto* b = coordinates.data() + static_cast<std::size_t>(right) * dimensions;
+  for (int axis = 0; axis < dimensions; ++axis) {
+    if (a[axis] < b[axis]) return -1;
+    if (a[axis] > b[axis]) return 1;
+  }
+  return 0;
+}
 
 Geometry path_geometry(const std::vector<double>& coordinates, int size,
                        int dimensions, int view) {
@@ -234,7 +247,8 @@ Geometry path_geometry(const std::vector<double>& coordinates, int size,
     code[i] = hilbert_code(row, dimensions);
   }
   std::sort(geometry.order.begin(), geometry.order.end(), [&](int left, int right) {
-    return code[left] < code[right] || (code[left] == code[right] && left < right);
+    if (code[left] != code[right]) return code[left] < code[right];
+    return compare_coordinates(coordinates, dimensions, left, right) < 0;
   });
 
   if (size < 2) return geometry;
@@ -279,6 +293,21 @@ Geometry path_geometry(const std::vector<double>& coordinates, int size,
     geometry.forward_action[geometry.order[edge + 1]] = action;
     geometry.reverse_action[geometry.order[edge]] = action;
   }
+  for (int begin = 0; begin < size - 1;) {
+    int end = begin + 1;
+    while (end < size && step[end - 1] == 0.0 &&
+           compare_coordinates(coordinates, dimensions,
+                               geometry.order[begin], geometry.order[end]) == 0) ++end;
+    if (end > begin + 1) {
+      geometry.coincident.emplace_back(begin, end);
+      const double left = begin > 0 ? local_scale[begin - 1] :
+        (end < size ? local_scale[end - 1] : reference);
+      const double right = end < size ? local_scale[end - 1] : left;
+      const double gap = std::max(1.0, std::sqrt(left * right) / reference);
+      for (int i = begin; i < end; ++i) geometry.isolation[geometry.order[i]] = gap;
+    }
+    begin = end;
+  }
   return geometry;
 }
 
@@ -294,33 +323,70 @@ void two_sided_enclosure_field(const std::vector<double>& source_indicator,
   std::vector<double> forward_field(width, 0.0);
   field.assign(width, 0.0);
   std::vector<double> state(classes, 0.0);
-  for (int row : geometry.order) {
-    const double decay = std::exp(-geometry.forward_action[row] / scale);
-    const std::size_t offset = static_cast<std::size_t>(row) * classes;
-    for (int cls = 0; cls < classes; ++cls) {
-      state[cls] *= decay;
-      forward_field[offset + cls] = state[cls];
+  const auto sweep = [&](bool reverse_direction, const auto& visit) {
+    const auto& action = reverse_direction ? geometry.reverse_action : geometry.forward_action;
+    if (geometry.coincident.empty()) {
+      for (int pos = 0; pos < size; ++pos) {
+        const int row = geometry.order[reverse_direction ? size - 1 - pos : pos];
+        const double decay = std::exp(-action[row] / scale);
+        const std::size_t offset = static_cast<std::size_t>(row) * classes;
+        for (int cls = 0; cls < classes; ++cls) {
+          state[cls] *= decay;
+          visit(offset + cls, state[cls]);
+          state[cls] += source_indicator[offset + cls];
+        }
+      }
+      return;
     }
-    for (int cls = 0; cls < classes; ++cls) {
-      state[cls] += source_indicator[offset + cls];
+    std::vector<int> counts(classes);
+    int group = reverse_direction ? static_cast<int>(geometry.coincident.size()) - 1 : 0;
+    for (int pos = 0; pos < size;) {
+      const int index = reverse_direction ? size - 1 - pos : pos;
+      const int row = geometry.order[index];
+      const double decay = std::exp(-action[row] / scale);
+      int length = 1;
+      if (group >= 0 && group < static_cast<int>(geometry.coincident.size())) {
+        const auto& block = geometry.coincident[group];
+        if (index == (reverse_direction ? block.second - 1 : block.first)) {
+          length = block.second - block.first;
+          group += reverse_direction ? -1 : 1;
+        }
+      }
+      const auto offset_at = [&](int j) {
+        return static_cast<std::size_t>(geometry.order[index + (reverse_direction ? -j : j)]) * classes;
+      };
+      if (length == 1) {
+        const std::size_t offset = offset_at(0);
+        for (int cls = 0; cls < classes; ++cls) {
+          state[cls] *= decay;
+          visit(offset + cls, state[cls]);
+          state[cls] += source_indicator[offset + cls];
+        }
+        ++pos;
+        continue;
+      }
+      for (int cls = 0; cls < classes; ++cls) {
+        state[cls] *= decay;
+        counts[cls] = 0;
+        for (int j = 0; j < length; ++j) counts[cls] += source_indicator[offset_at(j) + cls];
+      }
+      // Split peers' mass equally between directions, excluding the query itself.
+      for (int j = 0; j < length; ++j) {
+        const std::size_t offset = offset_at(j);
+        for (int cls = 0; cls < classes; ++cls) {
+          visit(offset + cls, state[cls] + 0.5 * (counts[cls] - source_indicator[offset + cls]));
+        }
+      }
+      for (int cls = 0; cls < classes; ++cls) state[cls] += counts[cls];
+      pos += length;
     }
-  }
+  };
+  sweep(false, [&](std::size_t index, double left) { forward_field[index] = left; });
   std::fill(state.begin(), state.end(), 0.0);
-  for (auto iterator = geometry.order.rbegin(); iterator != geometry.order.rend(); ++iterator) {
-    const int row = *iterator;
-    const double decay = std::exp(-geometry.reverse_action[row] / scale);
-    const std::size_t offset = static_cast<std::size_t>(row) * classes;
-    for (int cls = 0; cls < classes; ++cls) {
-      state[cls] *= decay;
-      const double forward = forward_field[offset + cls];
-      const double reverse = state[cls];
-      field[offset + cls] = forward + reverse +
-        2.0 * std::sqrt(forward * reverse);
-    }
-    for (int cls = 0; cls < classes; ++cls) {
-      state[cls] += source_indicator[offset + cls];
-    }
-  }
+  sweep(true, [&](std::size_t index, double reverse) {
+    const double forward = forward_field[index];
+    field[index] = forward + reverse + 2.0 * std::sqrt(forward * reverse);
+  });
 }
 
 bool has_spatial_extent(const std::vector<double>& coordinates, int size,
@@ -364,33 +430,72 @@ struct NeighborNode {
   int right;
 };
 
+struct ThreadLauncher {
+  template <typename Task>
+  void operator()(std::vector<std::thread>& pool, Task task) const {
+    pool.emplace_back(std::move(task));
+  }
+};
+
+template <typename Task, typename Launch = ThreadLauncher>
+void run_workers(int workers, const Task& task, const Launch& launch = Launch{}) {
+  if (workers == 1) {
+    task(0);
+    return;
+  }
+  std::vector<std::exception_ptr> errors(workers);
+  std::vector<std::thread> pool;
+  pool.reserve(workers);
+  struct JoinOnExit {
+    std::vector<std::thread>& pool;
+    ~JoinOnExit() {
+      for (auto& worker : pool) if (worker.joinable()) worker.join();
+    }
+  };
+  {
+    JoinOnExit join{pool};
+    for (int i = 0; i < workers; ++i) {
+      launch(pool, [&, i]() {
+        try {
+          task(i);
+        } catch (...) {
+          errors[i] = std::current_exception();
+        }
+      });
+    }
+  }
+  for (const auto& error : errors) if (error) std::rethrow_exception(error);
+}
+
 class NeighborTree {
  public:
   NeighborTree(const std::vector<double>& coordinates, int dimensions,
-               const std::vector<int>& rows)
-      : coordinates_(coordinates), dimensions_(dimensions), order_(rows) {
+               const std::vector<int>& rows, const std::vector<int>& labels)
+      : coordinates_(coordinates), dimensions_(dimensions), order_(rows), rank_(rows.size()) {
+    std::sort(order_.begin(), order_.end(), [&](int left, int right) {
+      const int comparison = compare_coordinates(coordinates, dimensions, left, right);
+      return comparison == 0 ? labels[left] < labels[right] : comparison < 0;
+    });
+    by_rank_ = order_;
+    for (std::size_t j = 0; j < order_.size(); ++j) rank_[order_[j]] = static_cast<int>(j);
     nodes_.reserve(rows.size());
     root_ = build(0, static_cast<int>(order_.size()), 0);
   }
 
   void binary_counts(int target, int count, const std::vector<int>& labels,
                      std::vector<std::pair<double, int> >& heap,
-                     int& count_zero, int& count_one,
-                     int& nearest_label) const {
+                     int& count_zero, int& count_one) const {
     heap.clear();
     search(root_, target, count, heap);
     count_zero = 0;
     count_one = 0;
-    std::pair<double, int> nearest = heap.front();
     for (const std::pair<double, int>& entry : heap) {
-      if (labels[entry.second] == 0) {
+      if (labels[by_rank_[entry.second]] == 0) {
         ++count_zero;
       } else {
         ++count_one;
       }
-      if (entry < nearest) nearest = entry;
     }
-    nearest_label = labels[nearest.second];
   }
 
  private:
@@ -398,6 +503,8 @@ class NeighborTree {
   int dimensions_;
   int root_;
   std::vector<int> order_;
+  std::vector<int> rank_;
+  std::vector<int> by_rank_;
   std::vector<NeighborNode> nodes_;
 
   double coordinate(int row, int axis) const {
@@ -438,12 +545,13 @@ class NeighborTree {
     search(near_child, target, count, heap);
     if (node.row != target) {
       const double distance = squared_distance(target, node.row);
+      const auto entry = std::make_pair(distance, rank_[node.row]);
       if (static_cast<int>(heap.size()) < count) {
-        heap.push_back(std::make_pair(distance, node.row));
+        heap.push_back(entry);
         std::push_heap(heap.begin(), heap.end());
-      } else if (distance < heap.front().first) {
+      } else if (entry < heap.front()) {
         std::pop_heap(heap.begin(), heap.end());
-        heap.back() = std::make_pair(distance, node.row);
+        heap.back() = entry;
         std::push_heap(heap.begin(), heap.end());
       }
     }
@@ -456,20 +564,11 @@ class NeighborTree {
 template <typename Function>
 void parallel_ranges(int size, int threads, const Function& function) {
   const int workers = std::max(1, std::min(size, threads));
-  if (workers == 1) {
-    function(0, size);
-    return;
-  }
-  std::vector<std::thread> pool;
-  pool.reserve(workers);
-  for (int worker = 0; worker < workers; ++worker) {
-    const int begin = size * worker / workers;
-    const int end = size * (worker + 1) / workers;
-    pool.emplace_back([begin, end, &function]() {
-      function(begin, end);
-    });
-  }
-  for (std::thread& worker : pool) worker.join();
+  run_workers(workers, [&](int worker) {
+    const int begin = static_cast<std::int64_t>(size) * worker / workers;
+    const int end = static_cast<std::int64_t>(size) * (worker + 1) / workers;
+    function(begin, end);
+  });
 }
 
 SampleResult apply_margin(const std::vector<int>& labels,
@@ -483,7 +582,9 @@ SampleResult apply_margin(const std::vector<int>& labels,
   result.required = std::move(evidence.required);
   result.dispersion = std::move(evidence.dispersion);
   result.isolation = std::move(evidence.isolation);
-  parallel_ranges(size, settings.threads, [&](int begin, int end) {
+  // A short admission pass costs less than starting a new thread pool.
+  const int workers = size < 4096 ? 1 : settings.threads;
+  parallel_ranges(size, workers, [&](int begin, int end) {
     for (int row = begin; row < end; ++row) {
       if (result.candidate[row] != labels[row] &&
           result.margin_score[row] >= result.required[row]) {
@@ -510,7 +611,7 @@ MarginEvidence binary_ballot_evidence(
 
   std::vector<int> rows(size);
   std::iota(rows.begin(), rows.end(), 0);
-  const NeighborTree tree(coordinates, dimensions, rows);
+  const NeighborTree tree(coordinates, dimensions, rows, labels);
   const int local_mass = std::min(size - 1, 1 << (dimensions + 4));
   parallel_ranges(size, settings.threads, [&](int begin, int end) {
     std::vector<std::pair<double, int> > heap;
@@ -518,10 +619,7 @@ MarginEvidence binary_ballot_evidence(
     for (int row = begin; row < end; ++row) {
       int count_zero = 0;
       int count_one = 0;
-      int nearest_label = labels[row];
-      tree.binary_counts(
-        row, local_mass, labels, heap, count_zero, count_one, nearest_label
-      );
+      tree.binary_counts(row, local_mass, labels, heap, count_zero, count_one);
       // A tied local volume has no preferred rival. Retaining the observed
       // class makes the binary evidence obey the same candidate-first rule as
       // the multiclass branch and prevents diagnostic-only tie choices.
@@ -623,28 +721,9 @@ SampleResult refine_sample(const std::vector<double>& coordinates,
 
     checkUserInterrupt();
     const int thread_count = std::min(settings.threads, views);
-    if (thread_count == 1) {
-      for (int view = 0; view < views; ++view) compute_view(view);
-    } else {
-      std::vector<std::thread> pool;
-      std::vector<std::exception_ptr> errors(thread_count);
-      pool.reserve(thread_count);
-      for (int thread = 0; thread < thread_count; ++thread) {
-        pool.emplace_back([&, thread]() {
-          try {
-            for (int view = thread; view < views; view += thread_count) {
-              compute_view(view);
-            }
-          } catch (...) {
-            errors[thread] = std::current_exception();
-          }
-        });
-      }
-      for (std::thread& worker : pool) worker.join();
-      for (const std::exception_ptr& error : errors) {
-        if (error) std::rethrow_exception(error);
-      }
-    }
+    run_workers(thread_count, [&](int thread) {
+      for (int view = thread; view < views; view += thread_count) compute_view(view);
+    });
   };
 
   const auto aggregate_atlas = [&](std::vector<double>& full_margin,
@@ -748,32 +827,22 @@ extern "C" SEXP _fibermargin_fiber_margin_cpp(SEXP xy_s, SEXP labels_s,
   NumericVector dispersion(n, 0.0);
   NumericVector isolation(n, 1.0);
 
-  std::vector<int> sample_levels;
-  if (n > 0) {
-    const int first_sample = samples_r[0];
-    bool single_sample = true;
-    for (int row = 1; row < n; ++row) {
-      if (samples_r[row] != first_sample) {
-        single_sample = false;
-        break;
-      }
-    }
-    if (single_sample) {
-      sample_levels.push_back(first_sample);
-    } else {
-      sample_levels.assign(samples_r.begin(), samples_r.end());
-      std::sort(sample_levels.begin(), sample_levels.end());
-      sample_levels.erase(
-        std::unique(sample_levels.begin(), sample_levels.end()), sample_levels.end());
-    }
+  int max_sample = 0;
+  for (int code : samples_r) {
+    if (code < 1 || code > n) stop("FiberMargin requires valid specimen codes.");
+    max_sample = std::max(max_sample, code);
   }
+  std::vector<std::vector<int>> groups(max_sample);
+  for (int i = 0; i < n; ++i) groups[samples_r[i] - 1].push_back(i);
+  std::vector<int> sample_levels;
+  for (int i = 0; i < max_sample; ++i) if (!groups[i].empty()) sample_levels.push_back(i + 1);
   IntegerVector dimensions_used(sample_levels.size());
   IntegerVector sample_sizes(sample_levels.size());
+  std::vector<int> global_to_local(classes, -1);
   for (std::size_t sample_index = 0; sample_index < sample_levels.size(); ++sample_index) {
     const int sample = sample_levels[sample_index];
     checkUserInterrupt();
-    std::vector<int> rows;
-    for (int i = 0; i < n; ++i) if (samples_r[i] == sample) rows.push_back(i);
+    const auto& rows = groups[sample - 1];
     sample_sizes[sample_index] = static_cast<int>(rows.size());
     std::vector<int> local_levels;
     local_levels.reserve(rows.size());
@@ -781,7 +850,6 @@ extern "C" SEXP _fibermargin_fiber_margin_cpp(SEXP xy_s, SEXP labels_s,
     std::sort(local_levels.begin(), local_levels.end());
     local_levels.erase(
       std::unique(local_levels.begin(), local_levels.end()), local_levels.end());
-    std::vector<int> global_to_local(classes, -1);
     for (std::size_t local = 0; local < local_levels.size(); ++local) {
       global_to_local[local_levels[local]] = static_cast<int>(local);
     }

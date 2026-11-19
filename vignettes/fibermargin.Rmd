@@ -162,7 +162,7 @@ refine_spatial_labels(xy, labels, samples = NULL, workers = NULL)
 contain one non-missing categorical value per row. `samples` is optional and
 defines independent coordinate systems. Integer, character, and factor specimen
 identifiers are accepted. `workers = NULL` uses a conservative automatic CPU
-budget; set a positive integer for an explicit total budget.
+budget; set an integer from 1 to 64 for an explicit total budget.
 
 Effective dimensionality is determined separately within every specimen.
 Zero-range axes are removed before refinement. At least two varying axes must

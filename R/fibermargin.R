@@ -19,7 +19,8 @@
 #' @param samples Optional specimen identifier. Different specimens are refined
 #'   independently.
 #' @param workers Optional total CPU budget shared by the native computation.
-#'   `NULL` uses up to two physical cores. The budget is never multiplied by the
+#'   Supply an integer from 1 to 64; `NULL` uses up to two physical cores.
+#'   The budget is never multiplied by the
 #'   number of specimens, and results are independent of the worker count.
 #'
 #' @return A factor with the levels and names of `labels`; when `labels` is
@@ -107,8 +108,8 @@ refine_spatial_labels <- function(xy, labels, samples = NULL, workers = NULL) {
   }
   if (!is.numeric(workers) || length(workers) != 1L ||
       !is.finite(workers) || workers < 1 || workers != floor(workers) ||
-      workers > .Machine$integer.max) {
-    stop("`workers` must be `NULL` or one positive integer.", call. = FALSE)
+      workers > 64) {
+    stop("`workers` must be `NULL` or one positive integer from 1 to 64.", call. = FALSE)
   }
   workers <- as.integer(workers)
   if (tolower(Sys.getenv("_R_CHECK_LIMIT_CORES_", "false")) %in%

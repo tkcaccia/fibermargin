@@ -59,7 +59,8 @@ three-dimensional specimens use all three coordinates.
 refined <- refine_spatial_labels(xy, labels, samples, workers = 4)
 ```
 
-The same budget is reused as specimens are processed, so there is no nested
+The explicit budget can be between 1 and 64 workers. It is reused as specimens
+are processed, so there is no nested
 process pool or worker multiplication. Native parallelism is available on macOS,
 Linux, and Windows. Changing `workers` does not change labels or inferential
 diagnostics; only the `workers` bookkeeping attribute records the effective

@@ -1,6 +1,6 @@
 ## Resubmission
 
-This update addresses the requested CRAN changes:
+Version 0.2.0 includes the earlier requested CRAN changes:
 
 * No reference was added to `DESCRIPTION` because no publication currently
   describes the FiberMargin method.
@@ -10,12 +10,16 @@ This update addresses the requested CRAN changes:
   `seed = NULL` argument leaves seed selection to the user; a supplied integer
   provides reproducible CRC corruption generation.
 
+It also stabilizes coordinate ties, makes CPU worker cleanup exception-safe,
+and indexes specimens in one pass. There is no change to the public function
+signature. New tests exercise coordinate ties and interleaved specimens.
+
 ## R CMD check results
 
 Tested with R 4.6.0 on macOS arm64 using:
 
 ```text
-R CMD check --as-cran fibermargin_0.1.0.tar.gz
+R CMD check --as-cran fibermargin_0.2.0.tar.gz
 ```
 
 Result: 0 errors, 0 warnings, 1 note.

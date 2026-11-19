@@ -332,13 +332,53 @@ test_that("input validation reports each contract violation", {
   missing_samples[1] <- NA
   expect_error(refine_spatial_labels(xy, labels, missing_samples),
                "missing identifiers")
-  for (invalid in list(0, -1, 1.5, Inf, NA_real_, "2", c(1, 2))) {
+  for (invalid in list(0, -1, 1.5, 65, Inf, NA_real_, "2", c(1, 2))) {
     expect_error(refine_spatial_labels(xy, labels, workers = invalid),
                  "positive integer")
   }
   line_xy <- cbind(x = seq_len(nrow(xy)), y = 0)
   expect_error(refine_spatial_labels(line_xy, labels),
                "fewer than two varying")
+})
+
+test_that("duplicate coordinates and quantized key collisions are row-order invariant", {
+  set.seed(124)
+  xy <- cbind(rep(1:5, each = 12), rep(rep(1:3, each = 4), 5))
+  distinct <- xy + cbind(seq_len(nrow(xy)), -seq_len(nrow(xy))) * 1e-9
+  permutation <- sample(nrow(xy))
+  inverse <- order(permutation)
+  for (coordinates in list(xy, distinct)) {
+    for (k in 2:3) {
+      y <- factor(sample(rep_len(LETTERS[seq_len(k)], nrow(xy))))
+      original <- refine_spatial_labels(coordinates, y, workers = 1)
+      shuffled <- refine_spatial_labels(coordinates[permutation, ], y[permutation], workers = 4)
+      expect_identical(as.integer(original), as.integer(shuffled)[inverse])
+      for (attribute in c("candidate", "margin_score", "required", "repair_margin",
+                          "atlas_dispersion", "isolation", "changed")) {
+        expect_identical(attr(original, attribute), attr(shuffled, attribute)[inverse])
+      }
+    }
+  }
+})
+
+test_that("many interleaved specimens preserve the original row order", {
+  local <- cbind(x = c(0, 1, 0, 1), y = c(0, 0, 1, 1))
+  samples <- rep(seq_len(250L), 4L)
+  xy <- local[rep(seq_len(4L), each = 250L), ]
+  labels <- factor(rep(c("A", "B", "C", "A"), each = 250L))
+  refined <- refine_spatial_labels(xy, labels, samples, workers = 2)
+  expect_identical(as.integer(refined), as.integer(labels))
+  expect_identical(unname(attr(refined, "sample_sizes")), rep.int(4L, 250L))
+})
+
+test_that("binary distance ties at the ballot cutoff are row-order invariant", {
+  xy <- as.matrix(expand.grid(x = 0:11, y = 0:9))
+  original <- factor(ifelse((xy[, 1] + 2 * xy[, 2]) %% 7 < 3, "A", "B"))
+  p <- c(seq(2L, nrow(xy), 2L), seq(1L, nrow(xy), 2L))
+  a <- refine_spatial_labels(xy, original, workers = 1L)
+  b <- refine_spatial_labels(xy[p, ], original[p], workers = 1L)
+  expect_identical(as.integer(a), as.integer(b)[order(p)])
+  expect_identical(attr(a, "margin_score"), attr(b, "margin_score")[order(p)])
 })
 
 test_that("large multi-sample execution respects one CPU budget", {

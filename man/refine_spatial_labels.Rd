@@ -15,7 +15,8 @@ refine_spatial_labels(xy, labels, samples = NULL, workers = NULL)
 independently.}
 
 \item{workers}{Optional total CPU budget shared by the native computation.
-`NULL` uses up to two physical cores. The budget is never multiplied by the
+  Supply an integer from 1 to 64; `NULL` uses up to two physical cores.
+  The budget is never multiplied by the
 number of specimens, and results are independent of the worker count.}
 }
 \value{

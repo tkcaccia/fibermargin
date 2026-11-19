@@ -42,7 +42,7 @@ All simulators return a `spatial_refinement_benchmark` object with `xy`,
 - `labels`: one non-missing categorical assignment per row.
 - `samples`: optional integer, character, or factor identifiers. Coordinates and
   labels never cross sample boundaries, even when coordinate values overlap.
-- `workers`: `NULL` or one positive integer specifying the total CPU budget.
+- `workers`: `NULL` or one integer from 1 to 64 specifying the total CPU budget.
 
 Constant axes are removed separately in each sample. A constant `z` therefore
 uses the 2D operator, while a variable `z` uses the genuine 3D operator. Every

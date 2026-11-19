@@ -1,3 +1,12 @@
+# fibermargin 0.2.0
+
+* Resolve Hilbert key ties by coordinates. Coincident multiclass sites share
+  peer evidence symmetrically without counting the query itself.
+* Give binary neighbourhoods a deterministic ordering at equal distances.
+* Index rows by specimen once, and join started CPU workers even if a later
+  thread launch fails. The maximum supported worker budget is 64.
+* Avoid starting additional threads for short admission passes.
+
 # fibermargin 0.1.0
 
 * Stabilized the four-argument `refine_spatial_labels()` public API.
