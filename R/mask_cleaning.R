@@ -85,7 +85,8 @@ clean_categorical_mask <- function(mask, samples = NULL, workers = NULL) {
 #' @param mask A reference categorical matrix or three-dimensional array.
 #' @param mechanism One of `"impulse"`, `"boundary"`, or `"patch"`.
 #' @param rate Fraction of non-missing cells whose labels are replaced.
-#' @param seed One integer random seed.
+#' @param seed One integer random seed. The caller's random-number state is
+#'   restored afterward.
 #'
 #' @return A mask with the same representation as `mask`. Exactly
 #'   `round(rate * n)` non-missing cells are changed, subject to at least one and
@@ -129,6 +130,8 @@ corrupt_categorical_mask <- function(
     length(active) - 1L,
     max(1L, as.integer(round(rate * length(active))))
   )
+  restore_rng <- .capture_fibermargin_rng()
+  on.exit(restore_rng(), add = TRUE)
   set.seed(seed)
   active_position <- seq_along(active)
   boundary_mask <- as.logical(.categorical_mask_boundary(mask, keep))
@@ -148,9 +151,11 @@ corrupt_categorical_mask <- function(
     boundary_position <- which(boundary_mask[active])
     remainder <- setdiff(active_position, boundary_position)
     initial <- if (length(boundary_position) >= change_count) {
-      sample(boundary_position, change_count)
+      boundary_position[sample.int(length(boundary_position), change_count)]
     } else {
-      c(boundary_position, sample(remainder, change_count - length(boundary_position)))
+      c(boundary_position, remainder[sample.int(
+        length(remainder), change_count - length(boundary_position)
+      )])
     }
     priority <- c(initial, setdiff(active_position, initial))
     selected_position <- .select_class_preserving_corruption(
@@ -224,10 +229,10 @@ corrupt_categorical_mask <- function(
 #' @param elapsed Optional elapsed runtime in seconds.
 #' @param method Optional method name included in the returned row.
 #'
-#' @details Missing cells in any input are excluded. Let `a0` be initial
-#' accuracy, `r` correction recall, and `d` damage rate. The returned quantities
-#' obey the exact decomposition
-#' `accuracy = a0 * (1 - d) + (1 - a0) * r`.
+#' @details The evaluation domain is fixed by cells with non-missing labels
+#' in both `reference` and `initial`. A missing cleaned label in this domain
+#' is an error. The accuracy gain equals the repaired fraction minus the
+#' damaged fraction, both measured over this fixed domain.
 #'
 #' @return A one-row data frame of class-balanced, boundary, rare-class, repair,
 #'   and damage measures.
@@ -246,14 +251,17 @@ evaluate_mask_cleaning <- function(reference, initial, cleaned,
     stop("`reference`, `initial`, and `cleaned` must have identical 2D or 3D dimensions.",
          call. = FALSE)
   }
-  keep <- !is.na(reference) & !is.na(initial) & !is.na(cleaned)
+  keep <- !is.na(as.character(reference)) & !is.na(as.character(initial))
   if (!any(keep)) {
-    stop("The masks have no jointly observed cells.", call. = FALSE)
+    stop("`reference` and `initial` have no jointly observed cells.", call. = FALSE)
   }
   boundary <- .categorical_mask_boundary(reference, keep)[keep]
   reference_value <- as.character(reference[keep])
   initial_value <- as.character(initial[keep])
   cleaned_value <- as.character(cleaned[keep])
+  if (anyNA(cleaned_value)) {
+    stop("`cleaned` has missing labels on the evaluation domain.", call. = FALSE)
+  }
   class_count <- table(reference_value)
   rare_class <- names(class_count)[which.min(class_count)][1L]
   sparse <- reference_value == rare_class
@@ -311,9 +319,7 @@ evaluate_mask_cleaning <- function(reference, initial, cleaned,
     boundary_fraction = mean(boundary),
     repaired_fraction = repaired_fraction,
     damaged_fraction = damaged_fraction,
-    repair_identity_error = metrics$accuracy -
-      (metrics$initial_accuracy * (1 - metrics$damage_rate) +
-         (1 - metrics$initial_accuracy) * metrics$correction_recall),
+    repair_identity_error = metrics$accuracy_gain - (repaired_fraction - damaged_fraction),
     stringsAsFactors = FALSE
   )
   output <- cbind(metrics, extra)

@@ -23,7 +23,7 @@ simulate_gradient_regions(
 
 \item{samples}{Number of independent tissues.}
 
-\item{seed}{Random seed.}
+\item{seed}{Random seed. The caller's random-number state is restored.}
 
 \item{curvature}{Boundary waviness on the unit coordinate scale.}
 

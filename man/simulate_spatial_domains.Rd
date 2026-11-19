@@ -44,7 +44,7 @@ regions. Use `"uniform"`, `"moderate"`, `"strong"`, `"extreme"`,
 profiles permute region weights reproducibly to avoid tying density to a
 particular class identifier.}
 
-\item{seed}{Random seed.}
+\item{seed}{Random seed. The caller's random-number state is restored.}
 }
 \value{
 A `spatial_refinement_benchmark` with coordinates, noisy labels,

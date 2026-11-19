@@ -119,7 +119,9 @@ evaluate_mask_cleaning(truth, noisy, cleaned)
 ```
 
 The evaluator reports multiclass mean IoU, one-grid-step Boundary IoU, rare-class
-IoU, correction recall, and damage. Its accuracy obeys the exact identity
+IoU, correction recall, and damage. It scores the cells with observed reference
+and initial labels and rejects missing predictions on that fixed footprint.
+Its accuracy obeys the exact identity
 `gain = repaired_fraction - damaged_fraction`.
 
 ## Diagnostics

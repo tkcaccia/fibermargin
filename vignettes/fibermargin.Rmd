@@ -449,6 +449,8 @@ voxel_cleaned <- clean_categorical_mask(voxel_initial, workers = 2L)
 
 Mask evaluation reports global recovery, ARI, class recall, correction and damage,
 mean and worst IoU, Dice, boundary IoU, and rare-class IoU.
+The scored cells are those with both a reference and an initial label.
+A method cannot improve its score by returning missing predictions there.
 
 ```{r evaluate-mask}
 mask_metrics <- evaluate_mask_cleaning(

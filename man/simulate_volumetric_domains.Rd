@@ -36,7 +36,7 @@ this impossible is rejected.}
 
 \item{samples}{Number of independent tissue volumes.}
 
-\item{seed}{Random seed.}
+\item{seed}{Random seed. The caller's random-number state is restored.}
 }
 \value{
 A `spatial_refinement_benchmark` with three coordinate columns.

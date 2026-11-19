@@ -68,6 +68,50 @@ test_that("benchmark runner can record method errors", {
   expect_equal(results$n, 300)
 })
 
+test_that("observed missing factor levels cannot alter benchmark metrics", {
+  sim <- simulate_gradient_regions(n = 300, seed = 402)
+  missing <- function(xy, labels) {
+    x <- as.character(labels)
+    x[1] <- NA_character_
+    factor(x, exclude = NULL)
+  }
+  unused <- factor(sim$labels, levels = c(levels(sim$labels), NA), exclude = NULL)
+  expect_equal(evaluate_spatial_refinement(sim$truth, sim$labels, unused)$accuracy,
+               mean(sim$truth == sim$labels))
+  expect_error(evaluate_spatial_refinement(sim$truth, sim$labels,
+      missing(sim$xy, sim$labels)), "`refined` must contain one non-missing")
+  expect_error(benchmark_spatial_refiners(sim, list(missing = missing)),
+               "Method `missing` failed")
+  score <- benchmark_spatial_refiners(
+    sim, list(missing = missing, good = function(xy, labels) labels),
+    on_error = "record"
+  )
+  expect_match(score$error[2], "method output")
+  expect_true(is.na(score$accuracy[2]))
+  expect_equal(score$accuracy[1], score$accuracy[3])
+})
+
+test_that("benchmark callback RNG changes do not affect subsequent methods", {
+  sim <- simulate_gradient_regions(n = 300, seed = 402)
+  set.seed(312L)
+  kind <- RNGkind()
+  state <- get(".Random.seed", envir = .GlobalEnv)
+  methods <- list(
+    failure = function(xy, labels) {
+      RNGkind("L'Ecuyer-CMRG")
+      stop("deliberate failure")
+    },
+    shuffled = function(xy, labels) sample(labels)
+  )
+  run <- benchmark_spatial_refiners(sim, methods, seed = 9L, on_error = "record")
+  expect_equal(run$accuracy[3], benchmark_spatial_refiners(
+    sim, list(noop = function(xy, labels) labels, shuffled = methods$shuffled),
+    seed = 9L
+  )$accuracy[3])
+  expect_identical(RNGkind(), kind)
+  expect_identical(get(".Random.seed", envir = .GlobalEnv), state)
+})
+
 test_that("benchmark runner requires a logical initial-label flag", {
   sim <- simulate_gradient_regions(n = 300, seed = 403)
   expect_error(

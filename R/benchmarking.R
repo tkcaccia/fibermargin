@@ -208,7 +208,8 @@ evaluate_spatial_refinement <- function(truth, initial, refined,
 #'   `xy` and `labels`; `samples` is supplied when the function declares it or
 #'   accepts `...`.
 #' @param include_initial Include the unrefined assignment as method `Initial`.
-#' @param seed Integer seed reset before each method run.
+#' @param seed Integer seed used for repeatable method runs. The caller's
+#'   random-number state is restored afterward.
 #' @param on_error Either `"stop"` or `"record"`. The latter returns an `error`
 #'   column and `NA` performance values for a failed method rather than aborting.
 #'
@@ -289,13 +290,15 @@ benchmark_spatial_refiners <- function(
 
     for (method_index in seq_along(methods)) {
       method_name <- names(methods)[method_index]
-      set.seed(seed + 1000L * dataset_index + method_index)
-      started <- proc.time()[["elapsed"]]
-      result <- tryCatch(
-        .call_spatial_refiner(methods[[method_index]], dataset),
-        error = identity
-      )
-      elapsed <- unname(proc.time()[["elapsed"]] - started)
+      elapsed <- NA_real_
+      result <- tryCatch({
+        run <- .time_spatial_refiner(
+          methods[[method_index]], dataset, seed + 1000 * dataset_index + method_index
+        )
+        elapsed <- run$elapsed
+        if (inherits(run$prediction, "error")) stop(run$prediction)
+        evaluate(run$prediction, method_name, elapsed)
+      }, error = identity)
       row_index <- row_index + 1L
       if (inherits(result, "error")) {
         if (on_error == "stop") {
@@ -312,13 +315,35 @@ benchmark_spatial_refiners <- function(
         failed[metric_columns] <- NA_real_
         rows[[row_index]] <- failed
       } else {
-        rows[[row_index]] <- evaluate(result, method_name, elapsed)
+        rows[[row_index]] <- result
       }
     }
   }
   output <- do.call(rbind, rows)
   rownames(output) <- NULL
   output
+}
+
+.time_spatial_refiner <- function(method, dataset, seed) {
+  restore_rng <- .capture_fibermargin_rng()
+  on.exit(restore_rng(), add = TRUE)
+  set.seed(seed)
+  started <- proc.time()[["elapsed"]]
+  prediction <- tryCatch(.call_spatial_refiner(method, dataset), error = identity)
+  list(prediction = prediction, elapsed = unname(proc.time()[["elapsed"]] - started))
+}
+
+.capture_fibermargin_rng <- function() {
+  state <- get0(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  kind <- RNGkind()
+  function() {
+    if (!identical(RNGkind(), kind)) do.call(RNGkind, as.list(kind))
+    if (!is.null(state)) {
+      assign(".Random.seed", state, envir = .GlobalEnv)
+    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      rm(".Random.seed", envir = .GlobalEnv)
+    }
+  }
 }
 
 .normalize_spatial_benchmark <- function(data) {
@@ -367,7 +392,7 @@ benchmark_spatial_refiners <- function(
 }
 
 .validate_benchmark_labels <- function(x, n, name) {
-  if (length(x) != n || anyNA(x)) {
+  if (length(x) != n || .fiber_has_missing(x)) {
     stop("`", name, "` must contain one non-missing value per observation.",
          call. = FALSE)
   }

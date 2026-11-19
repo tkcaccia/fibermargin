@@ -9,7 +9,7 @@
 #' @param minority Fraction of minority labels in every area.
 #' @param dimensions Either 2 or 3 spatial dimensions.
 #' @param samples Number of independent tissues.
-#' @param seed Random seed.
+#' @param seed Random seed. The caller's random-number state is restored.
 #' @param curvature Boundary waviness on the unit coordinate scale.
 #' @param density_profile Relative observation concentration across the four
 #'   tissue areas. Use `"uniform"`, `"moderate"`, `"strong"`, `"extreme"`,
@@ -62,6 +62,8 @@ simulate_gradient_regions <- function(n = 50000L,
       extreme = exp(seq(log(0.08), log(8), length.out = 4L)))
   }
 
+  restore_rng <- .capture_fibermargin_rng()
+  on.exit(restore_rng(), add = TRUE)
   set.seed(seed)
   if (density_name != "uniform" && density_name != "custom") area_density <- sample(area_density)
   n <- if (density_name == "uniform" && all(area_density == area_density[1L])) {

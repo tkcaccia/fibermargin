@@ -13,7 +13,7 @@
 #'   is rejected.
 #' @param samples Number of independent tissues.
 #' @param k Number of domains.
-#' @param seed Random seed.
+#' @param seed Random seed. The caller's random-number state is restored.
 #'
 #' @return A `spatial_refinement_benchmark`.
 #' @export
@@ -62,6 +62,8 @@ simulate_complex_spatial_domains <- function(
          call. = FALSE)
   }
 
+  restore_rng <- .capture_fibermargin_rng()
+  on.exit(restore_rng(), add = TRUE)
   set.seed(seed)
   candidates <- max(8L * n, n + 2000L)
   if (display_shape == "3D shells") {

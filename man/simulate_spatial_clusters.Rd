@@ -26,7 +26,7 @@ simulate_spatial_clusters(
 in a specimen retains one correct exemplar; a rate that makes this
 impossible is rejected.}
 
-\item{seed}{Random seed.}
+\item{seed}{Random seed. The caller's random-number state is restored.}
 }
 \value{
 A `spatial_refinement_benchmark` containing coordinates, noisy

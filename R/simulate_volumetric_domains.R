@@ -15,7 +15,7 @@
 #'   this impossible is rejected.
 #' @param k Number of domains.
 #' @param samples Number of independent tissue volumes.
-#' @param seed Random seed.
+#' @param seed Random seed. The caller's random-number state is restored.
 #'
 #' @return A `spatial_refinement_benchmark` with three coordinate columns.
 #' @export
@@ -67,6 +67,8 @@ simulate_volumetric_domains <- function(
          call. = FALSE)
   }
 
+  restore_rng <- .capture_fibermargin_rng()
+  on.exit(restore_rng(), add = TRUE)
   set.seed(seed)
   candidate_n <- max(8L * n, n + 5000L)
   candidate_xy <- .generate_volume_candidates(candidate_n, acquisition)

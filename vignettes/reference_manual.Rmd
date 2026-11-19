@@ -92,6 +92,8 @@ attr(refined_joint, "sample_sizes")
 
 - `evaluate_mask_cleaning(reference, initial, cleaned, ...)`  
   Computes mean IoU, boundary IoU, and damage/repair decomposition for masks.
+  The reference and initial masks define the scored cells, which all outputs
+  must label.
 
 ### Benchmarking
 

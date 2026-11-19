@@ -19,3 +19,4 @@ evaluate_mask_cleaning(
 }
 \value{A one-row data frame containing class-aware overlap, boundary agreement, rare-class, correction, and damage measures.}
 \description{Evaluates a cleaned mask against a fixed reference and noisy input mask. The output includes overlap scores, class-boundary agreement, and correction/damage decomposition.}
+\details{The evaluation domain consists of cells with non-missing labels in both the reference and the initial mask. A missing cleaned label on that domain is an error. Accuracy gain equals the repaired fraction minus the damaged fraction, both measured over the fixed domain.}

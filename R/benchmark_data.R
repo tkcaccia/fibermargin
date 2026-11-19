@@ -155,6 +155,8 @@ load_spatial_benchmark <- function(
         seed < 0 || seed > .Machine$integer.max || seed != trunc(seed)) {
       stop("`seed` must be `NULL` or one non-negative integer.", call. = FALSE)
     }
+    restore_rng <- .capture_fibermargin_rng()
+    on.exit(restore_rng(), add = TRUE)
     set.seed(as.integer(seed))
   }
   anchor_proximity <- as.numeric(!source$boundary)

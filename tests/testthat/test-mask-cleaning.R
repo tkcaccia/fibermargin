@@ -91,4 +91,38 @@ test_that("mask metrics obey the correction-damage decomposition", {
   expect_equal(perfect$macro_dice, 1)
   expect_equal(perfect$mean_boundary_iou, 1)
   expect_equal(perfect$boundary_accuracy, 1)
+  expect_equal(perfect$repair_identity_error, 0)
+})
+
+test_that("mask scoring uses a common input and reference footprint", {
+  truth <- matrix(rep(c("A", "B"), each = 50), nrow = 10)
+  initial <- truth
+  initial[1:10] <- "B"
+  truth[100] <- NA_character_
+  initial[99] <- NA_character_
+  clean <- initial
+  clean[99:100] <- NA_character_
+  expect_equal(evaluate_mask_cleaning(truth, initial, clean)$n, 98)
+  expect_equal(evaluate_mask_cleaning(truth, initial, clean)$accuracy, 88 / 98)
+  clean[1:10] <- NA_character_
+  expect_error(evaluate_mask_cleaning(truth, initial, clean), "evaluation domain")
+  dim(clean) <- NULL
+  clean <- structure(factor(clean, exclude = NULL), dim = dim(truth))
+  expect_error(evaluate_mask_cleaning(truth, initial, clean), "evaluation domain")
+})
+
+test_that("seeded mask corruption restores RNG on success and failure", {
+  a <- matrix(rep(c("A", "B"), each = 50), nrow = 10)
+  preserve <- fibermargin:::.capture_fibermargin_rng()
+  tryCatch({
+    if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      rm(".Random.seed", envir = .GlobalEnv)
+    }
+    invisible(corrupt_categorical_mask(a, seed = 4L))
+    expect_false(exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE))
+    set.seed(123L)
+    before <- get(".Random.seed", envir = .GlobalEnv)
+    expect_error(corrupt_categorical_mask(a, rate = .999, seed = 4L), "uncorrupted")
+    expect_identical(get(".Random.seed", envir = .GlobalEnv), before)
+  }, finally = preserve())
 })

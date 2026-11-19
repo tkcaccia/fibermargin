@@ -1,3 +1,11 @@
+# fibermargin 0.2.3
+
+* Evaluate masks on the fixed reference/input footprint, rejecting missing
+  cleaned labels on that footprint. Reject observed missing factor levels
+  in spatial benchmarks and record invalid predictions as method failures.
+* Seeded simulations, corruptions, and benchmark runs restore the caller's
+  random-number state without changing the refinement algorithm.
+
 # fibermargin 0.2.2
 
 * Generate the same Hilbert keys with specialized 2D and 3D code, and select

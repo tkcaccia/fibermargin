@@ -7,7 +7,7 @@
 #' @param noise Fraction of labels to corrupt at random. Each true class present
 #'   in a specimen retains one correct exemplar; a rate that makes this
 #'   impossible is rejected.
-#' @param seed Random seed.
+#' @param seed Random seed. The caller's random-number state is restored.
 #'
 #' @return A `spatial_refinement_benchmark` containing coordinates, noisy
 #'   labels, truth, sample identifiers, region, boundary, and sparse-region
@@ -21,6 +21,8 @@ simulate_spatial_clusters <- function(n = 50000L,
                                       samples = 1L,
                                       noise = 0.08,
                                       seed = 1L) {
+  restore_rng <- .capture_fibermargin_rng()
+  on.exit(restore_rng(), add = TRUE)
   set.seed(seed)
   dimensions <- as.integer(dimensions)
   k <- as.integer(k)

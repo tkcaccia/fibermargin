@@ -392,7 +392,7 @@
 #'   `"hotspot"`, or a positive numeric vector of length `k`. Character
 #'   profiles permute region weights reproducibly to avoid tying density to a
 #'   particular class identifier.
-#' @param seed Random seed.
+#' @param seed Random seed. The caller's random-number state is restored.
 #'
 #' @details Available geometries include jagged and wavy layers, concentric
 #' rings, spiral arms, branching sectors, lobes, rare islands, disconnected
@@ -459,6 +459,8 @@ simulate_spatial_domains <- function(n = 50000L,
     )
   }
 
+  restore_rng <- .capture_fibermargin_rng()
+  on.exit(restore_rng(), add = TRUE)
   set.seed(seed)
   if (density_name != "uniform" && density_name != "custom") {
     region_density <- sample(region_density)

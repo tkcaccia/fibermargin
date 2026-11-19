@@ -22,7 +22,7 @@ accepts `...`.}
 
 \item{include_initial}{Include the unrefined assignment as method `Initial`.}
 
-\item{seed}{Integer seed reset before each method run.}
+\item{seed}{Integer seed used for repeatable method runs. The caller's random-number state is restored afterward.}
 
 \item{on_error}{Either `"stop"` or `"record"`. The latter returns an `error`
 column and `NA` performance values for a failed method rather than aborting.}
