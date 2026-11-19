@@ -33,6 +33,40 @@ test_that("FiberMargin returns stable factors and diagnostics", {
   )
 })
 
+test_that("observed missing factor levels are rejected but unused levels survive", {
+  xy <- cbind(seq_len(100L), rep(seq_len(10L), 10L))
+  missing <- factor(c(rep(NA_character_, 75L), rep("A", 25L)), exclude = NULL)
+  clean <- factor(rep(c("A", "B", "C", "A"), 25L),
+                  levels = c("A", "B", "C", NA_character_), exclude = NULL)
+  expect_false(anyNA(missing))
+  expect_error(refine_spatial_labels(xy, missing), "missing assignments")
+  expect_error(refine_spatial_labels(xy, clean, samples = missing), "missing identifiers")
+  output <- refine_spatial_labels(xy, clean, workers = 1)
+  expect_identical(levels(output), levels(clean))
+  expect_identical(levels(attr(output, "candidate")), levels(clean))
+  expect_false(anyNA(as.character(output)))
+})
+
+test_that("uniform changes of units preserve geometry across finite exponents", {
+  sim <- simulate_gradient_regions(n = 4000, seed = 18)
+  xy <- sweep(sim$xy, 2L, colMeans(sim$xy), "-")
+  xy <- xy / max(abs(xy))
+  run <- function(mat) refine_spatial_labels(mat, sim$labels, workers = 1)
+  baseline <- run(xy)
+  for (units in c(1e-30, 1e-300, 1e308)) {
+    actual <- run(xy * units)
+    expect_identical(as.integer(actual), as.integer(baseline))
+    expect_identical(attr(actual, "changed"), attr(baseline, "changed"))
+    expect_equal(attr(actual, "margin_score"), attr(baseline, "margin_score"),
+                 tolerance = 1e-6)
+  }
+  # Both robust percentiles fall in the center, but the axis has nonzero range.
+  xy <- cbind(seq_len(400L), c(-1, rep(0, 398L), 1))
+  labels <- cut(xy[, 1], c(0, 100, 200, 400))
+  expect_identical(refine_spatial_labels(xy, labels, workers = 1),
+                   refine_spatial_labels(xy * 2^-900, labels, workers = 1))
+})
+
 test_that("binary local-volume evidence uses the shared margin admission rule", {
   set.seed(1551)
   xy <- matrix(runif(1600), ncol = 2)

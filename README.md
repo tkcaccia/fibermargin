@@ -200,10 +200,11 @@ crc <- load_spatial_benchmark(
 mean(crc$labels != crc$truth)
 ```
 
-## Current Validation
+## Archived Validation
 
-The C++ implementation is evaluated on predefined CRC, DLPFC, and MERFISH
-corruption protocols. On the direct-comparator matrices, it obtains 0.8589
+The archived comparator matrices below record an earlier evaluation of the
+C++ implementation on predefined CRC, DLPFC, and MERFISH corruption protocols.
+They are not the per-release evaluation records. The archive reports 0.8589
 accuracy and 0.7806 ARI across 60 CRC corruptions, within 0.0015 and 0.0021 of
 multiscale mode. Across 45 DLPFC corruptions it obtains 0.8942 accuracy and
 0.8220 ARI. Across 45 MERFISH corruptions it obtains 0.8905 accuracy and
@@ -221,5 +222,5 @@ re-evaluated only when the production source changes.
 
 See `vignette("fibermargin", package = "fibermargin")` for the workflow,
 `vignette("benchmarks", package = "fibermargin")` for benchmark design,
-and `vignette("fibermargin_reference", package = "fibermargin")` for the package
+and `vignette("reference_manual", package = "fibermargin")` for the package
 reference API.

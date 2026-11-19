@@ -55,6 +55,10 @@ refine_spatial_labels <- function(xy, labels, samples = NULL, workers = NULL) {
   .fiber_margin_engine(xy, labels, samples, workers = workers, control = list())
 }
 
+.fiber_has_missing <- function(x) {
+  anyNA(x) || (is.factor(x) && anyNA(levels(x)) && anyNA(as.character(x)))
+}
+
 .fiber_margin_engine <- function(xy, labels, samples = NULL, workers = NULL,
                                  control = list()) {
   xy <- as.matrix(xy)
@@ -75,7 +79,7 @@ refine_spatial_labels <- function(xy, labels, samples = NULL, workers = NULL) {
   if (length(labels) != nrow(xy)) {
     stop("`labels` must have one entry per row of `xy`.", call. = FALSE)
   }
-  if (anyNA(labels)) {
+  if (.fiber_has_missing(labels)) {
     stop("`labels` must not contain missing assignments.", call. = FALSE)
   }
   output_names <- names(labels)
@@ -93,7 +97,7 @@ refine_spatial_labels <- function(xy, labels, samples = NULL, workers = NULL) {
   if (length(samples) != nrow(xy)) {
     stop("`samples` must have one identifier per row of `xy`.", call. = FALSE)
   }
-  if (anyNA(samples)) {
+  if (.fiber_has_missing(samples)) {
     stop("`samples` must not contain missing identifiers.", call. = FALSE)
   }
   samples <- droplevels(as.factor(samples))
@@ -150,11 +154,9 @@ refine_spatial_labels <- function(xy, labels, samples = NULL, workers = NULL) {
     stop("Internal dimensionality diagnostics are inconsistent.", call. = FALSE)
   }
 
-  refined <- factor(levels(labels)[result$labels], levels = levels(labels))
+  refined <- structure(result$labels, levels = levels(labels), class = "factor")
   names(refined) <- output_names
-  candidate <- factor(
-    levels(labels)[result$candidate], levels = levels(labels)
-  )
+  candidate <- structure(result$candidate, levels = levels(labels), class = "factor")
   names(candidate) <- output_names
   pointwise <- list(
     candidate = candidate,

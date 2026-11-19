@@ -1,3 +1,19 @@
+# fibermargin 0.2.2
+
+* Generate the same Hilbert keys with specialized 2D and 3D code, and select
+  the exact normalization quantiles without sorting entire axes.
+* Reuse one transport buffer per worker, build each path on demand, and compute
+  dispersion only for the selected class. The public API and the refinement
+  rule are unchanged.
+
+# fibermargin 0.2.1
+
+* Reject observed missing factor levels in labels and specimen identifiers.
+  Preserve unused input label levels in the returned factor.
+* Normalize without an absolute tolerance in the input coordinate units,
+  including for small spans and coordinates close to the double-precision
+  range limit. Use the full axis range if both robust quantiles coincide.
+
 # fibermargin 0.2.0
 
 * Resolve Hilbert key ties by coordinates. Coincident multiclass sites share

@@ -19,13 +19,9 @@ constexpr double kGoldenRatioConjugate = 0.6180339887498949;
 constexpr double kSqrtTwoConjugate = 0.4142135623730951;
 constexpr double kSqrtThreeConjugate = 0.7320508075688772;
 constexpr double kPi = 3.141592653589793238462643383279502884;
-// This is the smallest fixed atlas that improved accuracy and ARI across the
-// frozen CRC, DLPFC, and MERFISH panels in the atlas-size audit.
 constexpr int kViews2D = 9;
 constexpr int kViews3D = 12;
-// One fixed central transport range keeps the enclosure rule single-scale and
-// avoids a multiscale ladder in the public operator.
-constexpr std::array<double, 1> kScales = {5.0};
+constexpr double kTransportRange = 5.0;
 constexpr int kMaxWorkers = 64;
 
 struct Settings {
@@ -52,12 +48,14 @@ Settings parse_settings(const List& control) {
 
 double quantile_linear(std::vector<double> values, double probability) {
   if (values.empty()) return 0.0;
-  std::sort(values.begin(), values.end());
   const double position = probability * static_cast<double>(values.size() - 1);
   const std::size_t lower = static_cast<std::size_t>(std::floor(position));
   const std::size_t upper = static_cast<std::size_t>(std::ceil(position));
   const double fraction = position - static_cast<double>(lower);
-  return values[lower] * (1.0 - fraction) + values[upper] * fraction;
+  const auto pivot = values.begin() + upper;
+  std::nth_element(values.begin(), pivot, values.end());
+  const double lower_value = lower == upper ? *pivot : *std::max_element(values.begin(), pivot);
+  return lower_value * (1.0 - fraction) + *pivot * fraction;
 }
 
 double median_inplace(std::vector<double>& values) {
@@ -68,10 +66,6 @@ double median_inplace(std::vector<double>& values) {
   if (values.size() % 2 == 1) return upper;
   const double lower = *std::max_element(values.begin(), values.begin() + middle);
   return 0.5 * (lower + upper);
-}
-
-double median(std::vector<double> values) {
-  return median_inplace(values);
 }
 
 struct CoordinateBlock {
@@ -103,11 +97,28 @@ CoordinateBlock robust_unit_coordinates(
     const int axis = active_axes[dimension];
     std::vector<double> values(size);
     for (int i = 0; i < size; ++i) values[i] = xy(rows[i], axis);
-    const double low = quantile_linear(values, 0.01);
-    const double high = quantile_linear(values, 0.99);
-    const double span = std::max(high - low, 1e-12);
+    const auto extent = std::minmax_element(values.begin(), values.end());
+    double axis_low = *extent.first;
+    double axis_high = *extent.second;
+    const double magnitude = std::max(std::abs(axis_low), std::abs(axis_high));
+    // Shift extreme exponents before forming differences or interpolating.
+    if (magnitude > std::numeric_limits<double>::max() / 4 ||
+        magnitude < 4 * std::numeric_limits<double>::min()) {
+      int exponent = 0;
+      std::frexp(magnitude, &exponent);
+      for (double& value : values) value = std::scalbn(value, -exponent);
+      axis_low = std::scalbn(axis_low, -exponent);
+      axis_high = std::scalbn(axis_high, -exponent);
+    }
+    double low = quantile_linear(values, 0.01);
+    double high = quantile_linear(values, 0.99);
+    if (high <= low) {
+      low = axis_low;
+      high = axis_high;
+    }
+    const double span = high - low;
     for (int i = 0; i < size; ++i) {
-      const double value = (xy(rows[i], axis) - low) / span;
+      const double value = (values[i] - low) / span;
       output.values[static_cast<std::size_t>(i) * dimensions + dimension] =
         std::max(-0.1, std::min(1.1, value));
     }
@@ -168,46 +179,53 @@ std::vector<double> path_unit(const std::vector<double>& coordinates,
   return transformed;
 }
 
-std::uint64_t hilbert_code(const double* coordinate, int dimensions, int bits = 16) {
-  std::array<std::uint64_t, 3> transformed = {0, 0, 0};
-  const std::uint64_t maximum = (static_cast<std::uint64_t>(1) << bits) - 1;
+// Spread the 16 low bits into alternating bit lanes for the Hilbert transpose.
+template <int dimensions>
+std::uint64_t spread_bits(std::uint64_t value) {
+  if constexpr (dimensions == 2) {
+    value = (value | value << 8) & 0x00ff00ffULL;
+    value = (value | value << 4) & 0x0f0f0f0fULL;
+    value = (value | value << 2) & 0x33333333ULL;
+    return (value | value << 1) & 0x55555555ULL;
+  } else {
+    value = (value | value << 16) & 0x001f0000ff0000ffULL;
+    value = (value | value << 8) & 0x100f00f00f00f00fULL;
+    value = (value | value << 4) & 0x10c30c30c30c30c3ULL;
+    return (value | value << 2) & 0x1249249249249249ULL;
+  }
+}
+
+template <int dimensions>
+std::uint64_t hilbert_code(const double* coordinate) {
+  std::array<std::uint64_t, dimensions> transformed;
+  constexpr int bits = 16;
+  constexpr std::uint64_t maximum = (1ULL << bits) - 1;
   for (int dimension = 0; dimension < dimensions; ++dimension) {
     const double clipped = std::max(0.0, std::min(1.0 - 1e-12, coordinate[dimension]));
     transformed[dimension] =
       static_cast<std::uint64_t>(std::floor(clipped * maximum));
   }
 
-  std::uint64_t q = static_cast<std::uint64_t>(1) << (bits - 1);
-  while (q > 1) {
+  for (std::uint64_t q = 1ULL << (bits - 1); q > 1; q >>= 1) {
     const std::uint64_t p = q - 1;
     for (int axis = 0; axis < dimensions; ++axis) {
-      if ((transformed[axis] & q) != 0) {
-        transformed[0] ^= p;
-      } else {
-        const std::uint64_t exchange = (transformed[0] ^ transformed[axis]) & p;
-        transformed[0] ^= exchange;
-        transformed[axis] ^= exchange;
-      }
+      const std::uint64_t invert = 0ULL - ((transformed[axis] & q) != 0);
+      const std::uint64_t exchange = (transformed[0] ^ transformed[axis]) & p & ~invert;
+      transformed[0] ^= (invert & p) | exchange;
+      transformed[axis] ^= exchange;
     }
-    q >>= 1;
   }
   for (int axis = 1; axis < dimensions; ++axis) {
     transformed[axis] ^= transformed[axis - 1];
   }
-  std::uint64_t correction = 0;
-  q = static_cast<std::uint64_t>(1) << (bits - 1);
-  while (q > 1) {
-    if ((transformed[dimensions - 1] & q) != 0) correction ^= q - 1;
-    q >>= 1;
-  }
-  for (int axis = 0; axis < dimensions; ++axis) transformed[axis] ^= correction;
-
+  std::uint64_t correction = transformed[dimensions - 1] >> 1;
+  correction ^= correction >> 1;
+  correction ^= correction >> 2;
+  correction ^= correction >> 4;
+  correction ^= correction >> 8;
   std::uint64_t code = 0;
-  for (int bit = 0; bit < bits; ++bit) {
-    for (int axis = 0; axis < dimensions; ++axis) {
-      code |= ((transformed[axis] >> bit) & 1ULL) <<
-        (bit * dimensions + dimensions - 1 - axis);
-    }
+  for (int axis = 0; axis < dimensions; ++axis) {
+    code |= spread_bits<dimensions>(transformed[axis] ^ correction) << (dimensions - 1 - axis);
   }
   return code;
 }
@@ -216,8 +234,7 @@ struct Geometry {
   std::vector<int> order;
   std::vector<std::pair<int, int>> coincident;
   std::vector<double> isolation;
-  std::vector<double> forward_action;
-  std::vector<double> reverse_action;
+  std::vector<double> decay;
 };
 
 int compare_coordinates(const std::vector<double>& coordinates, int dimensions,
@@ -231,20 +248,19 @@ int compare_coordinates(const std::vector<double>& coordinates, int dimensions,
   return 0;
 }
 
-Geometry path_geometry(const std::vector<double>& coordinates, int size,
-                       int dimensions, int view) {
+template <int dimensions>
+Geometry path_geometry(const std::vector<double>& coordinates, int size, int view) {
   Geometry geometry;
   geometry.order.resize(size);
   geometry.isolation.assign(size, 1.0);
-  geometry.forward_action.assign(size, 0.0);
-  geometry.reverse_action.assign(size, 0.0);
   std::iota(geometry.order.begin(), geometry.order.end(), 0);
 
-  const std::vector<double> unit = path_unit(coordinates, size, dimensions, view);
   std::vector<std::uint64_t> code(size);
-  for (int i = 0; i < size; ++i) {
-    const double* row = &unit[static_cast<std::size_t>(i) * dimensions];
-    code[i] = hilbert_code(row, dimensions);
+  {
+    const std::vector<double> unit = path_unit(coordinates, size, dimensions, view);
+    for (int i = 0; i < size; ++i) {
+      code[i] = hilbert_code<dimensions>(&unit[static_cast<std::size_t>(i) * dimensions]);
+    }
   }
   std::sort(geometry.order.begin(), geometry.order.end(), [&](int left, int right) {
     if (code[left] != code[right]) return code[left] < code[right];
@@ -268,30 +284,13 @@ Geometry path_geometry(const std::vector<double>& coordinates, int size,
   std::vector<double> positive;
   positive.reserve(step.size());
   for (double value : step) if (value > 1e-12) positive.push_back(value);
-  const double reference = positive.empty() ? 1.0 : median(positive);
-
-  // The incoming path edge is the local transport scale at its destination.
-  std::vector<double> local_scale = step;
-  for (double& value : local_scale) value = std::max(value, 1e-12);
-
-  std::vector<double> point_scale(size, reference);
-  point_scale[0] = local_scale.front();
-  point_scale[size - 1] = local_scale.back();
-  for (int position = 1; position < size - 1; ++position) {
-    point_scale[position] = std::sqrt(local_scale[position - 1] * local_scale[position]);
-  }
-
-  // Transport always follows normalized geometric path length. A location is
-  // isolated only when its adjacent path gaps exceed the median gap; that
-  // factor is used solely to protect the final decision at the query.
+  const double reference = positive.empty() ? 1.0 : median_inplace(positive);
+  const auto local_scale = [&](int edge) { return std::max(step[edge], 1e-12); };
   for (int position = 0; position < size; ++position) {
-    const double gap = point_scale[position] / std::max(reference, 1e-12);
+    const double scale = position == 0 ? local_scale(0) : position == size - 1 ?
+      local_scale(size - 2) : std::sqrt(local_scale(position - 1) * local_scale(position));
+    const double gap = scale / reference;
     geometry.isolation[geometry.order[position]] = std::max(1.0, gap);
-  }
-  for (int edge = 0; edge < size - 1; ++edge) {
-    const double action = step[edge] / std::max(reference, 1e-12);
-    geometry.forward_action[geometry.order[edge + 1]] = action;
-    geometry.reverse_action[geometry.order[edge]] = action;
   }
   for (int begin = 0; begin < size - 1;) {
     int end = begin + 1;
@@ -300,14 +299,16 @@ Geometry path_geometry(const std::vector<double>& coordinates, int size,
                                geometry.order[begin], geometry.order[end]) == 0) ++end;
     if (end > begin + 1) {
       geometry.coincident.emplace_back(begin, end);
-      const double left = begin > 0 ? local_scale[begin - 1] :
-        (end < size ? local_scale[end - 1] : reference);
-      const double right = end < size ? local_scale[end - 1] : left;
+      const double left = begin > 0 ? local_scale(begin - 1) :
+        (end < size ? local_scale(end - 1) : reference);
+      const double right = end < size ? local_scale(end - 1) : left;
       const double gap = std::max(1.0, std::sqrt(left * right) / reference);
       for (int i = begin; i < end; ++i) geometry.isolation[geometry.order[i]] = gap;
     }
     begin = end;
   }
+  for (double& edge : step) edge = std::exp(-(edge / reference) / kTransportRange);
+  geometry.decay = std::move(step);
   return geometry;
 }
 
@@ -315,26 +316,28 @@ Geometry path_geometry(const std::vector<double>& coordinates, int size,
 // arrives from both directions. The squared sum of directional amplitudes
 // keeps unilateral support while giving an explicit bonus to balanced support:
 // (sqrt(left) + sqrt(right))^2.
-void two_sided_enclosure_field(const std::vector<double>& source_indicator,
-                               int size, int classes,
-                               const Geometry& geometry, double scale,
-                               std::vector<double>& field) {
+void two_sided_enclosure_field(const std::vector<int>& labels, int classes,
+                               const Geometry& geometry, std::vector<double>& field) {
+  const int size = static_cast<int>(labels.size());
   const std::size_t width = static_cast<std::size_t>(size) * classes;
-  std::vector<double> forward_field(width, 0.0);
-  field.assign(width, 0.0);
+  field.resize(width);
   std::vector<double> state(classes, 0.0);
+  const auto decay_at = [&](int index, bool reverse) {
+    if (reverse) return index == size - 1 ? 1.0 : geometry.decay[index];
+    return index == 0 ? 1.0 : geometry.decay[index - 1];
+  };
   const auto sweep = [&](bool reverse_direction, const auto& visit) {
-    const auto& action = reverse_direction ? geometry.reverse_action : geometry.forward_action;
     if (geometry.coincident.empty()) {
       for (int pos = 0; pos < size; ++pos) {
-        const int row = geometry.order[reverse_direction ? size - 1 - pos : pos];
-        const double decay = std::exp(-action[row] / scale);
+        const int index = reverse_direction ? size - 1 - pos : pos;
+        const int row = geometry.order[index];
+        const double decay = decay_at(index, reverse_direction);
         const std::size_t offset = static_cast<std::size_t>(row) * classes;
         for (int cls = 0; cls < classes; ++cls) {
           state[cls] *= decay;
           visit(offset + cls, state[cls]);
-          state[cls] += source_indicator[offset + cls];
         }
+        state[labels[row]] += 1.0;
       }
       return;
     }
@@ -343,7 +346,7 @@ void two_sided_enclosure_field(const std::vector<double>& source_indicator,
     for (int pos = 0; pos < size;) {
       const int index = reverse_direction ? size - 1 - pos : pos;
       const int row = geometry.order[index];
-      const double decay = std::exp(-action[row] / scale);
+      const double decay = decay_at(index, reverse_direction);
       int length = 1;
       if (group >= 0 && group < static_cast<int>(geometry.coincident.size())) {
         const auto& block = geometry.coincident[group];
@@ -352,39 +355,39 @@ void two_sided_enclosure_field(const std::vector<double>& source_indicator,
           group += reverse_direction ? -1 : 1;
         }
       }
-      const auto offset_at = [&](int j) {
-        return static_cast<std::size_t>(geometry.order[index + (reverse_direction ? -j : j)]) * classes;
+      const auto row_at = [&](int j) {
+        return geometry.order[index + (reverse_direction ? -j : j)];
       };
       if (length == 1) {
-        const std::size_t offset = offset_at(0);
+        const std::size_t offset = static_cast<std::size_t>(row) * classes;
         for (int cls = 0; cls < classes; ++cls) {
           state[cls] *= decay;
           visit(offset + cls, state[cls]);
-          state[cls] += source_indicator[offset + cls];
         }
+        state[labels[row]] += 1.0;
         ++pos;
         continue;
       }
-      for (int cls = 0; cls < classes; ++cls) {
-        state[cls] *= decay;
-        counts[cls] = 0;
-        for (int j = 0; j < length; ++j) counts[cls] += source_indicator[offset_at(j) + cls];
-      }
+      std::fill(counts.begin(), counts.end(), 0);
+      for (int j = 0; j < length; ++j) ++counts[labels[row_at(j)]];
+      for (int cls = 0; cls < classes; ++cls) state[cls] *= decay;
       // Split peers' mass equally between directions, excluding the query itself.
       for (int j = 0; j < length; ++j) {
-        const std::size_t offset = offset_at(j);
+        const int peer = row_at(j);
+        const int observed = labels[peer];
+        const std::size_t offset = static_cast<std::size_t>(peer) * classes;
         for (int cls = 0; cls < classes; ++cls) {
-          visit(offset + cls, state[cls] + 0.5 * (counts[cls] - source_indicator[offset + cls]));
+          visit(offset + cls, state[cls] + 0.5 * (counts[cls] - (cls == observed)));
         }
       }
       for (int cls = 0; cls < classes; ++cls) state[cls] += counts[cls];
       pos += length;
     }
   };
-  sweep(false, [&](std::size_t index, double left) { forward_field[index] = left; });
+  sweep(false, [&](std::size_t index, double left) { field[index] = left; });
   std::fill(state.begin(), state.end(), 0.0);
   sweep(true, [&](std::size_t index, double reverse) {
-    const double forward = forward_field[index];
+    const double forward = field[index];
     field[index] = forward + reverse + 2.0 * std::sqrt(forward * reverse);
   });
 }
@@ -665,122 +668,49 @@ SampleResult refine_sample(const std::vector<double>& coordinates,
       labels, binary_ballot_evidence(coordinates, labels, dimensions, settings), settings);
   }
 
-  const int views = dimensions == 2 ? kViews2D : kViews3D;
-  const int charts = views;
+  const int charts = dimensions == 2 ? kViews2D : kViews3D;
   const std::size_t row_class = static_cast<std::size_t>(size) * classes;
-  std::vector<double> observed_source(row_class, 0.0);
-  for (int row = 0; row < size; ++row) {
-    observed_source[static_cast<std::size_t>(row) * classes + labels[row]] = 1.0;
-  }
-  std::vector<Geometry> atlas(charts);
-  checkUserInterrupt();
-  parallel_ranges(charts, std::min(settings.threads, charts), [&](int begin, int end) {
-    for (int view = begin; view < end; ++view) {
-      atlas[view] = path_geometry(coordinates, size, dimensions, view);
-    }
-  });
-  std::vector<float> chart_action;
+  std::vector<float> chart_action(static_cast<std::size_t>(charts) * row_class);
   std::vector<float> chart_isolation(static_cast<std::size_t>(charts) * size);
-  const auto compute_atlas = [&]() {
-    chart_action.assign(static_cast<std::size_t>(charts) * row_class, 0.0F);
-    const auto compute_view = [&](int view) {
-      const Geometry& geometry = atlas[view];
+
+  checkUserInterrupt();
+  const int thread_count = std::min(settings.threads, charts);
+  run_workers(thread_count, [&](int thread) {
+    std::vector<double> field;
+    for (int view = thread; view < charts; view += thread_count) {
+      const Geometry geometry = dimensions == 2 ? path_geometry<2>(coordinates, size, view) :
+        path_geometry<3>(coordinates, size, view);
+      two_sided_enclosure_field(labels, classes, geometry, field);
+      float* action = chart_action.data() + static_cast<std::size_t>(view) * row_class;
       for (int row = 0; row < size; ++row) {
         chart_isolation[static_cast<std::size_t>(view) * size + row] =
           static_cast<float>(geometry.isolation[row]);
-      }
-
-      std::vector<double> mean_margin(row_class, 0.0);
-      const auto add_enclosure_margin = [&]() {
-        std::vector<double> field;
-        for (double scale : kScales) {
-          two_sided_enclosure_field(
-            observed_source, size, classes, geometry, scale, field);
-          for (int row = 0; row < size; ++row) {
-            const std::size_t offset = static_cast<std::size_t>(row) * classes;
-            double total = 0.0;
-            for (int cls = 0; cls < classes; ++cls) total += field[offset + cls];
-            total = std::max(total, 1e-12);
-            const double observed = field[offset + labels[row]] / total;
-            for (int cls = 0; cls < classes; ++cls) {
-              const std::size_t index = offset + cls;
-              mean_margin[index] += field[index] / total - observed;
-            }
-          }
+        const std::size_t offset = static_cast<std::size_t>(row) * classes;
+        double total = 0.0;
+        for (int cls = 0; cls < classes; ++cls) total += field[offset + cls];
+        total = std::max(total, 1e-12);
+        const double observed = field[offset + labels[row]] / total;
+        for (int cls = 0; cls < classes; ++cls) {
+          const std::size_t index = offset + cls;
+          action[index] = static_cast<float>(field[index] / total - observed);
         }
-        const double scale_count = static_cast<double>(kScales.size());
-        for (double& value : mean_margin) value /= scale_count;
-      };
-
-      add_enclosure_margin();
-      for (std::size_t index = 0; index < row_class; ++index) {
-        chart_action[static_cast<std::size_t>(view) * row_class + index] =
-          static_cast<float>(mean_margin[index]);
       }
-    };
-
-    checkUserInterrupt();
-    const int thread_count = std::min(settings.threads, views);
-    run_workers(thread_count, [&](int thread) {
-      for (int view = thread; view < views; view += thread_count) compute_view(view);
-    });
-  };
-
-  const auto aggregate_atlas = [&](std::vector<double>& full_margin,
-                                   std::vector<double>& full_dispersion) {
-    std::vector<double> values(charts);
-    full_margin.assign(row_class, 0.0);
-    full_dispersion.assign(row_class, 0.0);
-    for (std::size_t index = 0; index < row_class; ++index) {
-      for (int atlas = 0; atlas < charts; ++atlas) {
-        values[atlas] = chart_action[static_cast<std::size_t>(atlas) * row_class + index];
-      }
-      double mean = 0.0;
-      for (int atlas = 0; atlas < charts; ++atlas) mean += values[atlas];
-      mean /= static_cast<double>(charts);
-      double variance = 0.0;
-      for (int atlas = 0; atlas < charts; ++atlas) {
-        const double delta = values[atlas] - mean;
-        variance += delta * delta;
-      }
-      variance /= static_cast<double>(charts);
-      full_margin[index] = mean;
-      // The admission scale is the empirical chart standard deviation divided
-      // by sqrt(A): one standard error across the fixed spatial atlas.
-      full_dispersion[index] = std::sqrt(variance) /
-        std::sqrt(static_cast<double>(charts));
     }
-  };
-
-  compute_atlas();
-  std::vector<double> full_margin;
-  std::vector<double> full_dispersion;
-  aggregate_atlas(full_margin, full_dispersion);
+  });
 
   std::vector<double> positive;
   for (double value : count) if (value > 0.0) positive.push_back(value);
-  const double reference = std::max(median(positive), 1.0);
+  const double reference = std::max(median_inplace(positive), 1.0);
   std::vector<double> deficit(classes, 1.0);
   for (int cls = 0; cls < classes; ++cls) {
     deficit[cls] = std::sqrt(reference / std::max(count[cls], 1.0));
   }
 
-  const auto required_barrier = [&](int row, int rival, double dispersion) {
-    return dispersion / deficit[rival] * evidence.isolation[row];
-  };
-  const auto best_rival = [&](const std::vector<double>& margin, int row) {
-    const std::size_t offset = static_cast<std::size_t>(row) * classes;
-    // Exact evidence ties retain the supplied label. This prevents a
-    // zero-evidence change that would otherwise depend on class encoding.
-    int rival = labels[row];
-    for (int cls = 0; cls < classes; ++cls) {
-      if (margin[offset + cls] > margin[offset + rival]) rival = cls;
-    }
-    return rival;
-  };
-
+  checkUserInterrupt();
+  const double sqrt_charts = std::sqrt(static_cast<double>(charts));
   parallel_ranges(size, settings.threads, [&](int begin, int end) {
     std::vector<double> values(charts);
+    std::vector<double> mean(classes);
     for (int row = begin; row < end; ++row) {
       for (int atlas = 0; atlas < charts; ++atlas) {
         values[atlas] = chart_isolation[static_cast<std::size_t>(atlas) * size + row];
@@ -788,13 +718,34 @@ SampleResult refine_sample(const std::vector<double>& coordinates,
       evidence.isolation[row] = median_inplace(values);
 
       const std::size_t offset = static_cast<std::size_t>(row) * classes;
-      const int rival = best_rival(full_margin, row);
-      const double required = required_barrier(
-        row, rival, full_dispersion[offset + rival]);
+      std::fill(mean.begin(), mean.end(), 0.0);
+      for (int atlas = 0; atlas < charts; ++atlas) {
+        const float* contrasts = chart_action.data() +
+          static_cast<std::size_t>(atlas) * row_class + offset;
+        for (int cls = 0; cls < classes; ++cls) mean[cls] += contrasts[cls];
+      }
+      for (double& value : mean) value /= static_cast<double>(charts);
+      int rival = labels[row];
+      for (int cls = 0; cls < classes; ++cls) {
+        if (mean[cls] > mean[rival]) rival = cls;
+      }
+
+      // The candidate uses mean contrasts only; dispersion is needed just for its barrier.
+      for (int atlas = 0; atlas < charts; ++atlas) {
+        values[atlas] = chart_action[static_cast<std::size_t>(atlas) * row_class + offset + rival];
+      }
+      double variance = 0.0;
+      const double selected_mean = mean[rival];
+      for (double value : values) {
+        const double delta = value - selected_mean;
+        variance += delta * delta;
+      }
+      variance /= static_cast<double>(charts);
+      const double dispersion = std::sqrt(variance) / sqrt_charts;
       evidence.candidate[row] = rival;
-      evidence.margin_score[row] = full_margin[offset + rival];
-      evidence.required[row] = required;
-      evidence.dispersion[row] = full_dispersion[offset + rival];
+      evidence.margin_score[row] = selected_mean;
+      evidence.required[row] = dispersion / deficit[rival] * evidence.isolation[row];
+      evidence.dispersion[row] = dispersion;
     }
   });
   return apply_margin(labels, std::move(evidence), settings);
