@@ -20,7 +20,7 @@ benchmark_data <- simulate_spatial_domains(
 run_once <- function(workers, repetition, measured = TRUE) {
   gc(verbose = FALSE)
   elapsed <- system.time({
-    refined <- RefineMargin(
+    refined <- FiberMargin(
       benchmark_data$xy,
       benchmark_data$labels,
       benchmark_data$samples,

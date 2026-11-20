@@ -1,6 +1,6 @@
 # FiberMargin 0.1.0 integration contract
 
-Call `refine_spatial_labels(xy, labels, samples = NULL, workers = NULL)` with one
+Call `FiberMargin(xy, labels, samples = NULL, workers = NULL)` with one
 row per spatial location. `xy` is a finite numeric matrix with exactly two or
 three columns, and `labels` contains one non-missing assignment per row.
 `samples` may be integer, character, or factor; each observed value defines an

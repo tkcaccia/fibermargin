@@ -30,21 +30,18 @@ cases <- list(
 # A separate replay checks exact label and diagnostic equality across worker counts.
 for (name in names(cases)) {
   case <- cases[[name]]
-  serial <- RefineMargin(case$xy, case$labels, case$samples, workers = 1L)
-  parallel <- RefineMargin(case$xy, case$labels, case$samples, workers = 4L)
-  stopifnot(identical(serial, refine_spatial_labels(
-    case$xy, case$labels, case$samples, workers = 1L
-  ), num.eq = FALSE))
+  serial <- FiberMargin(case$xy, case$labels, case$samples, workers = 1L)
+  parallel <- FiberMargin(case$xy, case$labels, case$samples, workers = 4L)
   attr(serial, "workers") <- attr(parallel, "workers") <- NULL
   stopifnot(identical(serial, parallel, num.eq = FALSE))
-  one <- RefineMargin(case$xy, case$labels, case$samples, workers = 1L, transport = "short")
-  four <- RefineMargin(case$xy, case$labels, case$samples, workers = 4L, transport = "short")
+  one <- FiberMargin(case$xy, case$labels, case$samples, workers = 1L, transport = "short")
+  four <- FiberMargin(case$xy, case$labels, case$samples, workers = 4L, transport = "short")
   attr(one, "workers") <- attr(four, "workers") <- NULL
   stopifnot(identical(one, four, num.eq = FALSE))
   message(name, ": labels and diagnostics identical across workers for both presets")
 }
-methods <- list(FiberMargin = RefineMargin,
-  Short = function(xy, labels, samples) RefineMargin(xy, labels, samples, transport = "short"))
+methods <- list(FiberMargin = FiberMargin,
+  Short = function(xy, labels, samples) FiberMargin(xy, labels, samples, transport = "short"))
 metrics <- benchmark_spatial_refiners(cases, methods, seed = 820001L)
 stopifnot(nrow(metrics) == 3L * length(cases), all(is.na(metrics$error)),
           identical(unique(metrics$method), c("Initial", "FiberMargin", "Short")))

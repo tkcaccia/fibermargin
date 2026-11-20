@@ -30,8 +30,8 @@ The default uses five median path edges. To compare the shorter range of
 2.5 median edges on an annotated representative specimen:
 
 ~~~r
-standard <- RefineMargin(xy, labels, samples)
-short <- RefineMargin(xy, labels, samples, transport = "short")
+standard <- FiberMargin(xy, labels, samples)
+short <- FiberMargin(xy, labels, samples, transport = "short")
 ~~~
 
 Choose based on damage to correct labels as well as accuracy and thin-class
@@ -47,7 +47,7 @@ sim <- simulate_gradient_regions(
   density_profile = "strong"
 )
 
-refined <- RefineMargin(
+refined <- FiberMargin(
   xy = sim$xy,
   labels = sim$labels,
   samples = sim$samples
@@ -65,9 +65,6 @@ coordinates nor labels cross a specimen boundary. Constant coordinate axes are
 removed separately within each specimen. A specimen with columns `(x, y, z)`
 and constant `z` is therefore exactly equivalent to `(x, y)`, while genuinely
 three-dimensional specimens use all three coordinates.
-
-`RefineMargin()` is the current name of `refine_spatial_labels()`.
-The old name remains an alias for existing scripts.
 
 ### Refine clusters in a spatial object
 
@@ -98,7 +95,7 @@ For runnable examples in all three frameworks, open
 `workers` is the total native CPU budget for the call, not a budget per specimen:
 
 ```r
-refined <- RefineMargin(xy, labels, samples, workers = 4)
+refined <- FiberMargin(xy, labels, samples, workers = 4)
 ```
 
 The explicit budget can be between 1 and 64 workers. It is reused as specimens
@@ -126,7 +123,7 @@ volume <- simulate_volumetric_domains(
   seed = 42
 )
 
-volume_refined <- RefineMargin(
+volume_refined <- FiberMargin(
   volume$xy, volume$labels, volume$samples, workers = 4
 )
 attr(volume_refined, "dimensions_used")
@@ -140,7 +137,7 @@ xy <- rbind(xy_one, xy_one)
 samples <- rep(c("section_1", "section_2"), each = nrow(xy_one))
 labels <- factor(rep(sim$labels[sim$samples == levels(sim$samples)[1]], 2))
 
-joint <- RefineMargin(xy, labels, samples, workers = 4)
+joint <- FiberMargin(xy, labels, samples, workers = 4)
 attr(joint, "sample_sizes")
 ```
 

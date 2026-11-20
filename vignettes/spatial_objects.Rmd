@@ -33,7 +33,7 @@ metadata <- data.frame(clusters = sim$labels, sample_id = sim$samples,
 counts <- matrix(1L, nrow = 2L, ncol = length(ids),
                  dimnames = list(c("gene1", "gene2"), ids))
 
-refined <- RefineMargin(xy, metadata$clusters, metadata$sample_id, workers = 1L)
+refined <- FiberMargin(xy, metadata$clusters, metadata$sample_id, workers = 1L)
 data.frame(
   initial_accuracy = mean(metadata$clusters == sim$truth),
   refined_accuracy = mean(refined == sim$truth),
@@ -155,7 +155,7 @@ necessary, `spat_unit` or `feat_type`.
   overwritten. Reuse the original object or give a different `output.column`
   for a second run.
 - **Inspect changes.** A label can disappear after refinement. For candidate
-  labels, repair margins, and per-specimen summaries, call `RefineMargin()`
+  labels, repair margins, and per-specimen summaries, call `FiberMargin()`
   with the same coordinates, assignments, and specimen identifiers.
 - **Validate a shorter range.** For multiclass fields, try
   `RunFiberMargin(..., transport = "short")` with a different output column.
@@ -167,5 +167,5 @@ attr(refined, "labels_changed")
 attr(refined, "removed_classes")
 ```
 
-See `?RunFiberMargin` for the complete interface and `?RefineMargin` for the
+See `?RunFiberMargin` for the complete interface and `?FiberMargin` for the
 meaning of each diagnostic.

@@ -21,18 +21,18 @@ RunFiberMargin(
 \item{sample.column}{Optional column identifying independent specimens. The
 default uses \code{sample_id} when present. Seurat images are always
 independent; the specimen column can split them further.}
-\item{workers}{Optional total CPU budget passed to \code{\link{RefineMargin}()}.}
+\item{workers}{Optional total CPU budget passed to \code{\link{FiberMargin}()}.}
 \item{...}{Object-specific arguments. For Seurat, \code{images} selects image
 or field-of-view names. By default all images must cover every observation
 exactly once. With an explicit selection, unselected observations keep their
 input labels. For Giotto, \code{spat_unit}, \code{feat_type}, and \code{location}
 select the spatial unit, feature type and spatial-location layer; \code{NULL}
 uses Giotto's defaults.}
-\item{transport}{Multiclass transport preset passed to \code{\link{RefineMargin}()}.}
+\item{transport}{Multiclass transport preset passed to \code{\link{FiberMargin}()}.}
 }
 \description{
 Reads observation coordinates and existing labels, calls
-\code{\link{RefineMargin}()}, and saves a factor in a new metadata column.
+\code{\link{FiberMargin}()}, and saves a factor in a new metadata column.
 Input metadata, object class, and active Seurat identities are not changed.
 }
 \details{
@@ -49,7 +49,7 @@ The matrix API does not require them.
 }
 \value{
 The updated object with the new column \code{output.column}.
-Use \code{\link{RefineMargin}()} directly for pointwise and specimen-level
+Use \code{\link{FiberMargin}()} directly for pointwise and specimen-level
 diagnostics.
 }
 \examples{

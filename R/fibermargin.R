@@ -1,6 +1,6 @@
 #' Refine noisy categorical labels on a spatial domain
 #'
-#' `RefineMargin()` applies FiberMargin to a coordinate-indexed label
+#' `FiberMargin()` applies FiberMargin to a coordinate-indexed label
 #' field. The function is deterministic: no training phase is run and all route
 #' constants are fixed internally. For multiclass data, each class receives a
 #' two-sided local evidence score with a fixed transport range. In the binary
@@ -14,7 +14,6 @@
 #' two-column `(x, y)` representation, while genuinely three-dimensional
 #' specimens retain all three axes.
 #'
-#' `refine_spatial_labels()` is a compatibility alias for `RefineMargin()`.
 #' For object-based workflows, see [RunFiberMargin()].
 #' Changed sites are suggested edits, not verified errors. Review outputs on
 #' representative inputs before replacing the original labels.
@@ -48,29 +47,24 @@
 #'   `workers`, these summaries are named by specimen; class summaries are named
 #'   lists. Class counts are not constrained, so `removed_classes` explicitly
 #'   records observed classes that disappear after refinement.
-#' @aliases refine_spatial_labels
 #' @export
 #' @examples
 #' sim <- simulate_gradient_regions(n = 2000, samples = 2)
-#' refined <- RefineMargin(sim$xy, sim$labels, sim$samples)
+#' refined <- FiberMargin(sim$xy, sim$labels, sim$samples)
 #' mean(refined == sim$truth)
 #'
 #' # A constant z axis is removed within this specimen.
 #' xyz <- cbind(sim$xy, z = 0)
 #' stopifnot(identical(
-#'   RefineMargin(xyz, sim$labels, sim$samples, workers = 1),
-#'   RefineMargin(sim$xy, sim$labels, sim$samples, workers = 1)
+#'   FiberMargin(xyz, sim$labels, sim$samples, workers = 1),
+#'   FiberMargin(sim$xy, sim$labels, sim$samples, workers = 1)
 #' ))
-RefineMargin <- function(xy, labels, samples = NULL, workers = NULL,
-                         transport = c("standard", "short")) {
+FiberMargin <- function(xy, labels, samples = NULL, workers = NULL,
+                        transport = c("standard", "short")) {
   transport <- match.arg(transport)
   control <- if (transport == "short") list(short_transport = 1L) else list()
   .fiber_margin_engine(xy, labels, samples, workers = workers, control = control)
 }
-
-#' @rdname RefineMargin
-#' @export
-refine_spatial_labels <- RefineMargin
 
 .fiber_has_missing <- function(x) {
   anyNA(x) || (is.factor(x) && anyNA(levels(x)) && anyNA(as.character(x)))

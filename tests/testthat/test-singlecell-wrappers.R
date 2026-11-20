@@ -17,13 +17,14 @@ plain_labels <- function(x) {
   structure(as.integer(x), levels = levels(x), class = "factor")
 }
 
-test_that("the previous coordinate API is an exact compatibility alias", {
-  expect_identical(refine_spatial_labels, RefineMargin)
+test_that("the coordinate API is exported and object input is validated", {
+  expect_identical(getExportedValue("fibermargin", "FiberMargin"), FiberMargin)
+  expect_named(formals(FiberMargin), c("xy", "labels", "samples", "workers", "transport"))
   expect_error(RunFiberMargin(list()), "must be a Seurat")
   expect_error(RunFiberMargin(list(), output.column = NA_character_), "output.column")
 })
 
-test_that("SpatialExperiment writes the same 3D specimen-wise labels as RefineMargin", {
+test_that("SpatialExperiment writes the same 3D specimen-wise labels as FiberMargin", {
   skip_if_not_installed("SpatialExperiment")
   skip_if_not_installed("SummarizedExperiment")
   x <- wrapper_fixture()
@@ -33,7 +34,7 @@ test_that("SpatialExperiment writes the same 3D specimen-wise labels as RefineMa
   spe <- SpatialExperiment::SpatialExperiment(
     assays = list(counts = x$counts), spatialCoords = xyz, colData = metadata
   )
-  direct <- RefineMargin(xyz, x$clusters, x$samples, workers = 1L)
+  direct <- FiberMargin(xyz, x$clusters, x$samples, workers = 1L)
   expect_identical(unname(attr(direct, "dimensions_used")), c(2L, 3L))
   out <- RunFiberMargin(spe, cluster.column = "clusters", workers = 1L)
   expect_s4_class(out, "SpatialExperiment")
@@ -41,7 +42,7 @@ test_that("SpatialExperiment writes the same 3D specimen-wise labels as RefineMa
   short <- RunFiberMargin(spe, cluster.column = "clusters", workers = 1L,
                           transport = "short")
   expect_identical(short$FiberMargin_clusters, plain_labels(
-    RefineMargin(xyz, x$clusters, x$samples, workers = 1L, transport = "short")
+    FiberMargin(xyz, x$clusters, x$samples, workers = 1L, transport = "short")
   ))
   expect_identical(out$clusters, spe$clusters)
   expect_identical(colnames(out), x$ids)
@@ -69,7 +70,7 @@ test_that("Seurat matches shuffled centroids and isolates overlapping coordinate
   }
   out <- RunFiberMargin(object, workers = 1L)
   original_idents <- SeuratObject::Idents(object)
-  direct <- RefineMargin(x$xy, original_idents, x$samples, workers = 1L)
+  direct <- FiberMargin(x$xy, original_idents, x$samples, workers = 1L)
   expect_s4_class(out, "Seurat")
   expect_identical(out[[]]$FiberMargin_clusters, plain_labels(direct))
   expect_identical(SeuratObject::Idents(out), original_idents)
@@ -82,7 +83,7 @@ test_that("Seurat matches shuffled centroids and isolates overlapping coordinate
   grouped <- object
   grouped$sample_id <- rep(c("p1", "p2"), length.out = length(x$ids))
   split <- RunFiberMargin(grouped, "clusters", workers = 1L)
-  direct <- RefineMargin(x$xy, x$clusters, interaction(x$samples, grouped$sample_id),
+  direct <- FiberMargin(x$xy, x$clusters, interaction(x$samples, grouped$sample_id),
                          workers = 1L)
   expect_identical(split[[]]$FiberMargin_clusters, plain_labels(direct))
   expect_error(RunFiberMargin(object, images = "missing"), "existing Seurat")
@@ -110,7 +111,7 @@ test_that("Seurat Visium uses the full-resolution image coordinates", {
   )
   object[["slice"]] <- image
   out <- RunFiberMargin(object, "clusters", workers = 1L)
-  direct <- RefineMargin(xy, clusters, workers = 1L)
+  direct <- FiberMargin(xy, clusters, workers = 1L)
   expect_identical(out[[]]$FiberMargin_clusters, plain_labels(direct))
 
   if (methods::isClass("VisiumV2")) {
@@ -144,7 +145,7 @@ test_that("Giotto uses spatial location IDs, retains z, and writes new cell meta
   out <- RunFiberMargin(object, "clusters", workers = 1L)
   expect_s4_class(out, "giotto")
   refined <- GiottoClass::getCellMetadata(out, output = "data.table")
-  direct <- RefineMargin(xyz, x$clusters, x$samples, workers = 1L)
+  direct <- FiberMargin(xyz, x$clusters, x$samples, workers = 1L)
   expect_identical(refined[["FiberMargin_clusters"]][match(x$ids, refined[["cell_ID"]])],
                    plain_labels(direct))
   expect_identical(refined[["clusters"]], observed[["clusters"]])

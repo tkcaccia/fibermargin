@@ -6,7 +6,7 @@
 \usage{
 benchmark_spatial_refiners(
   data,
-  methods = list(FiberMargin = RefineMargin),
+  methods = list(FiberMargin = FiberMargin),
   include_initial = TRUE,
   seed = 1L,
   on_error = c("stop", "record")
@@ -22,7 +22,8 @@ accepts `...`.}
 
 \item{include_initial}{Include the unrefined assignment as method `Initial`.}
 
-\item{seed}{Integer seed used for repeatable method runs. The caller's random-number state is restored afterward.}
+\item{seed}{Integer seed used for repeatable method runs. The caller's
+random-number state is restored afterward.}
 
 \item{on_error}{Either `"stop"` or `"record"`. The latter returns an `error`
 column and `NA` performance values for a failed method rather than aborting.}

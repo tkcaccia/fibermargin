@@ -12,7 +12,7 @@
 #'   Different sample identifiers are cleaned independently.
 #' @param workers Optional CPU budget used across samples and independent
 #'   spatial charts. `NULL` uses up to two physical cores when possible.
-#' @param transport Multiclass transport preset passed to [RefineMargin()].
+#' @param transport Multiclass transport preset passed to [FiberMargin()].
 #'
 #' @return A cleaned mask with the dimensions, dimnames, storage type, and void
 #'   locations of `mask`. Pointwise arrays are attached as attributes
@@ -54,7 +54,7 @@ clean_categorical_mask <- function(mask, samples = NULL, workers = NULL,
 
   coordinates <- arrayInd(which(keep), .dim = dimensions)
   colnames(coordinates) <- c("row", "column", "slice")[seq_len(ncol(coordinates))]
-  refined <- RefineMargin(
+  refined <- FiberMargin(
     xy = coordinates,
     labels = mask[keep],
     samples = sample_values,

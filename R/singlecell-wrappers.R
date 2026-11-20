@@ -1,7 +1,7 @@
 #' Refine clustering in a spatial transcriptomics object
 #'
 #' Reads spatial coordinates and existing cluster assignments, calls
-#' [RefineMargin()], and writes a new factor column to observation metadata.
+#' [FiberMargin()], and writes a new factor column to observation metadata.
 #' The object class, original labels, and active Seurat identities are retained.
 #'
 #' @param object A Seurat, SpatialExperiment, or Giotto Suite object.
@@ -11,15 +11,15 @@
 #' @param sample.column Optional metadata column identifying independent
 #'   specimens. The default uses `sample_id` when present. Seurat images
 #'   are always independent; the specimen column can split them further.
-#' @param workers Optional total CPU budget passed to [RefineMargin()].
+#' @param workers Optional total CPU budget passed to [FiberMargin()].
 #' @param ... Object-specific arguments. For Seurat, `images` selects image or
 #'   field-of-view names. By default all images are used, and they must cover
 #'   every observation exactly once. With an explicit selection, unselected
 #'   observations keep their input labels. For Giotto, `spat_unit`,
 #'   `feat_type`, and `location` select the spatial unit, feature type,
 #'   and spatial-location layer; `NULL` uses Giotto's defaults.
-#' @param transport Multiclass transport preset passed to [RefineMargin()].
-#' @return The updated object. Use [RefineMargin()] directly to obtain
+#' @param transport Multiclass transport preset passed to [FiberMargin()].
+#' @return The updated object. Use [FiberMargin()] directly to obtain
 #'   pointwise and sample-level diagnostics.
 #' @export
 RunFiberMargin <- function(object, cluster.column = NULL,
@@ -249,7 +249,7 @@ RunFiberMargin.giotto <- function(object, cluster.column = NULL,
 }
 
 .fm_refined_factor <- function(xy, clusters, samples, workers, transport) {
-  refined <- RefineMargin(xy, clusters, samples = samples, workers = workers,
+  refined <- FiberMargin(xy, clusters, samples = samples, workers = workers,
                           transport = transport)
   # Container metadata stores assignments, not per-point engine diagnostics.
   structure(as.integer(refined), levels = levels(refined), class = "factor")

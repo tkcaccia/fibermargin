@@ -1,7 +1,7 @@
 Package: fibermargin
 Type: Package
 Title: Categorical Mask and Spatial Label Refinement
-Version: 0.3.0
+Version: 0.4.0
 Authors@R: person(given = "Stefano", family = "Cacciatore",
     email = "tkcaccia@gmail.com", role = c("aut", "cre", "cph"))
 Description: Implements 'FiberMargin', a deterministic training-free operator for
@@ -44,4 +44,4 @@ Enhances:
     GiottoClass
 VignetteBuilder: knitr
 Config/testthat/edition: 3
-Config/roxygen2/version: 8.0.0
+Config/roxygen2/version: 8.1.0

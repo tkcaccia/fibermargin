@@ -66,17 +66,16 @@ There are two fixed computational routes:
 - Binary fields use a distinct fixed nearest-neighbour ballot specialization.
 
 The package accepts irregular 2D or 3D coordinates through
-`RefineMargin()` and regular pixel or voxel arrays through
+`FiberMargin()` and regular pixel or voxel arrays through
 `clean_categorical_mask()`. Multiple specimens can be supplied in one call and
 are always processed independently.
 
-The current interface is summarized below. The previous
-`refine_spatial_labels()` name remains a compatibility alias for `RefineMargin()`.
+The package functions are summarized below.
 
 ```{r api-index}
 api <- data.frame(
   Function = c(
-    "RefineMargin", "RunFiberMargin", "clean_categorical_mask",
+    "FiberMargin", "RunFiberMargin", "clean_categorical_mask",
     "corrupt_categorical_mask", "evaluate_mask_cleaning",
     "spatial_benchmark", "evaluate_spatial_refinement",
     "benchmark_spatial_refiners", "simulate_spatial_clusters",
@@ -121,7 +120,7 @@ gradient <- simulate_gradient_regions(
   seed = 12L
 )
 
-refined_gradient <- RefineMargin(
+refined_gradient <- FiberMargin(
   xy = gradient$xy,
   labels = gradient$labels,
   samples = gradient$samples,
@@ -182,10 +181,10 @@ a different metadata column. In Seurat this column can further split cells
 within each image. For Giotto objects with multiple spatial location
 layers, specify `location` along with `spat_unit` or `feat_type` if needed.
 
-## `RefineMargin()`
+## `FiberMargin()`
 
 ```r
-RefineMargin(xy, labels, samples = NULL, workers = NULL, transport = "standard")
+FiberMargin(xy, labels, samples = NULL, workers = NULL, transport = "standard")
 ```
 
 `xy` must be a finite numeric matrix with two or three columns. `labels` must
@@ -299,7 +298,7 @@ binary_data <- simulate_spatial_clusters(
   noise = 0.12,
   seed = 21L
 )
-binary_refined <- RefineMargin(
+binary_refined <- FiberMargin(
   binary_data$xy, binary_data$labels,
   samples = binary_data$samples, workers = 1L
 )
@@ -320,10 +319,10 @@ A constant third axis is removed within the specimen, producing the same labels
 and every same pointwise diagnostic as the 2D call.
 
 ```{r constant-z}
-flat_2d <- RefineMargin(
+flat_2d <- FiberMargin(
   gradient$xy, gradient$labels, gradient$samples, workers = 1L
 )
-flat_3d <- RefineMargin(
+flat_3d <- FiberMargin(
   cbind(gradient$xy, z = 0), gradient$labels,
   gradient$samples, workers = 1L
 )
@@ -342,7 +341,7 @@ volume_example <- simulate_volumetric_domains(
   noise = 0.18,
   seed = 23L
 )
-volume_refined <- RefineMargin(
+volume_refined <- FiberMargin(
   volume_example$xy, volume_example$labels,
   volume_example$samples, workers = 2L
 )
@@ -369,14 +368,14 @@ overlapping_labels <- factor(
 overlapping_samples <- rep(
   c("section_1", "section_2"), each = length(source_rows)
 )
-joint <- RefineMargin(
+joint <- FiberMargin(
   overlapping_xy, overlapping_labels,
   samples = overlapping_samples, workers = 2L
 )
 
 separate <- unsplit(
   lapply(split(seq_len(nrow(overlapping_xy)), overlapping_samples), function(rows) {
-    RefineMargin(
+    FiberMargin(
       overlapping_xy[rows, , drop = FALSE],
       overlapping_labels[rows],
       workers = 1L
@@ -396,10 +395,10 @@ standard C++ threads on macOS, Linux, and Windows. Changing `workers` changes
 execution only, not labels or diagnostics.
 
 ```{r worker-determinism, eval=FALSE}
-one_worker <- RefineMargin(
+one_worker <- FiberMargin(
   gradient$xy, gradient$labels, gradient$samples, workers = 1L
 )
-four_workers <- RefineMargin(
+four_workers <- FiberMargin(
   gradient$xy, gradient$labels, gradient$samples, workers = 4L
 )
 attr(one_worker, "workers") <- NULL
@@ -625,7 +624,7 @@ comparison <- benchmark_spatial_refiners(
   ),
   methods = list(
     FiberMargin = function(xy, labels, samples = NULL) {
-      RefineMargin(xy, labels, samples, workers = 1L)
+      FiberMargin(xy, labels, samples, workers = 1L)
     },
     IdentityExample = function(xy, labels, ...) labels
   ),
@@ -813,7 +812,7 @@ Scenario identifiers are also accepted:
 crc_case <- load_spatial_benchmark(
   "crc", scenario = "CRC_random_25_r1", seed = 1040001L
 )
-crc_refined <- RefineMargin(
+crc_refined <- FiberMargin(
   crc_case$xy, crc_case$labels,
   samples = crc_case$samples,
   workers = 4L
@@ -841,7 +840,7 @@ labels <- factor(my_data$annotation)
 samples <- factor(my_data$section_id)
 
 # Repair does not receive the reference labels.
-refined <- RefineMargin(
+refined <- FiberMargin(
   xy = xy,
   labels = labels,
   samples = samples,

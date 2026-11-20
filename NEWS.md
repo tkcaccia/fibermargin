@@ -1,7 +1,14 @@
+# fibermargin 0.4.0
+
+- `FiberMargin()` is the single public entry point for coordinate-and-label
+  refinement. This release removes the superseded function names. Inputs,
+  results, diagnostics, and native computation are unchanged.
+- `RunFiberMargin()` remains the interface for spatial experiment objects.
+
 # fibermargin 0.3.0
 
-- `RefineMargin()`, `RunFiberMargin()`, and `clean_categorical_mask()`
-  accept `transport = "short"` for multiclass repair at 2.5 median path
+- The coordinate, spatial-object, and mask interfaces accept
+  `transport = "short"` for multiclass repair at 2.5 median path
   edges. This preset reduces the influence of distant labels; there is
   still one transport sweep in each direction.
 - The default (`transport = "standard"`, five median path edges), binary
@@ -10,8 +17,6 @@
 
 # fibermargin 0.2.4
 
-- Use `RefineMargin()` for coordinate-and-label refinement. The former
-  `refine_spatial_labels()` name remains an exact compatibility alias.
 - `RunFiberMargin()` refines an existing clustering in a Seurat, Giotto
   Suite, or SpatialExperiment object and stores the result in a new
   observation metadata column.
@@ -55,7 +60,7 @@
 
 # fibermargin 0.1.0
 
-* Stabilized the four-argument `refine_spatial_labels()` public API.
+* Stabilized the coordinate-and-label interface.
 * Added strict validation for coordinate dimensionality, finite values, labels,
   specimen identifiers, worker budgets, and per-specimen coordinate variation.
 * Made coordinate dimensionality specimen-specific. Constant axes are removed

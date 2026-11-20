@@ -221,7 +221,7 @@ evaluate_spatial_refinement <- function(truth, initial, refined,
 #' benchmark_spatial_refiners(sim, methods)
 benchmark_spatial_refiners <- function(
     data,
-    methods = list(FiberMargin = RefineMargin),
+    methods = list(FiberMargin = FiberMargin),
     include_initial = TRUE,
     seed = 1L,
     on_error = c("stop", "record")) {

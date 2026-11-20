@@ -3,7 +3,7 @@ test_that("FiberMargin returns stable factors and diagnostics", {
     n = 1200, pattern = "jagged_stripes", noise = 0.20,
     noise_type = "boundary", seed = 1501
   )
-  refined <- RefineMargin(
+  refined <- FiberMargin(
     simulation$xy, simulation$labels, simulation$samples, workers = 1
   )
 
@@ -39,9 +39,9 @@ test_that("observed missing factor levels are rejected but unused levels survive
   clean <- factor(rep(c("A", "B", "C", "A"), 25L),
                   levels = c("A", "B", "C", NA_character_), exclude = NULL)
   expect_false(anyNA(missing))
-  expect_error(RefineMargin(xy, missing), "missing assignments")
-  expect_error(RefineMargin(xy, clean, samples = missing), "missing identifiers")
-  output <- RefineMargin(xy, clean, workers = 1)
+  expect_error(FiberMargin(xy, missing), "missing assignments")
+  expect_error(FiberMargin(xy, clean, samples = missing), "missing identifiers")
+  output <- FiberMargin(xy, clean, workers = 1)
   expect_identical(levels(output), levels(clean))
   expect_identical(levels(attr(output, "candidate")), levels(clean))
   expect_false(anyNA(as.character(output)))
@@ -51,7 +51,7 @@ test_that("uniform changes of units preserve geometry across finite exponents", 
   sim <- simulate_gradient_regions(n = 4000, seed = 18)
   xy <- sweep(sim$xy, 2L, colMeans(sim$xy), "-")
   xy <- xy / max(abs(xy))
-  run <- function(mat) RefineMargin(mat, sim$labels, workers = 1)
+  run <- function(mat) FiberMargin(mat, sim$labels, workers = 1)
   baseline <- run(xy)
   for (units in c(1e-30, 1e-300, 1e308)) {
     actual <- run(xy * units)
@@ -63,8 +63,8 @@ test_that("uniform changes of units preserve geometry across finite exponents", 
   # Both robust percentiles fall in the center, but the axis has nonzero range.
   xy <- cbind(seq_len(400L), c(-1, rep(0, 398L), 1))
   labels <- cut(xy[, 1], c(0, 100, 200, 400))
-  expect_identical(RefineMargin(xy, labels, workers = 1),
-                   RefineMargin(xy * 2^-900, labels, workers = 1))
+  expect_identical(FiberMargin(xy, labels, workers = 1),
+                   FiberMargin(xy * 2^-900, labels, workers = 1))
 })
 
 test_that("binary local-volume evidence uses the shared margin admission rule", {
@@ -76,8 +76,8 @@ test_that("binary local-volume evidence uses the shared margin admission rule", 
   noisy[corrupted] <- ifelse(noisy[corrupted] == "A", "B", "A")
   noisy <- factor(noisy, levels = levels(labels))
 
-  refined <- RefineMargin(xy, noisy, workers = 1)
-  expect_identical(refined, RefineMargin(xy, noisy, workers = 1, transport = "short"))
+  refined <- FiberMargin(xy, noisy, workers = 1)
+  expect_identical(refined, FiberMargin(xy, noisy, workers = 1, transport = "short"))
   observed <- as.integer(noisy)
   candidate <- as.integer(attr(refined, "candidate"))
 
@@ -109,12 +109,12 @@ test_that("overlapping specimens are exactly isolated", {
   )
   samples <- factor(rep(c("first", "second"), each = nrow(shared_xy)))
 
-  original <- RefineMargin(xy, labels, samples, workers = 4)
+  original <- FiberMargin(xy, labels, samples, workers = 4)
   modified_labels <- labels
   modified_labels[samples == "second"] <- sample(
     levels(labels), sum(samples == "second"), replace = TRUE
   )
-  modified <- RefineMargin(
+  modified <- FiberMargin(
     xy, modified_labels, samples, workers = 2
   )
   first <- samples == "first"
@@ -138,13 +138,13 @@ test_that("chart and specimen workers are bitwise deterministic", {
     n = 2400, pattern = "jagged_stripes", noise = 0.25,
     samples = 3, seed = 1651
   )
-  serial <- RefineMargin(
+  serial <- FiberMargin(
     simulation$xy, simulation$labels, simulation$samples, workers = 1
   )
-  parallel_two <- RefineMargin(
+  parallel_two <- FiberMargin(
     simulation$xy, simulation$labels, simulation$samples, workers = 2
   )
-  parallel_four <- RefineMargin(
+  parallel_four <- FiberMargin(
     simulation$xy, simulation$labels, simulation$samples, workers = 4
   )
 
@@ -160,10 +160,10 @@ test_that("chart and specimen workers are bitwise deterministic", {
   single <- simulate_spatial_domains(
     n = 1600, pattern = "rings", noise = 0.25, samples = 1, seed = 1652
   )
-  serial_chart <- RefineMargin(
+  serial_chart <- FiberMargin(
     single$xy, single$labels, single$samples, workers = 1
   )
-  parallel_chart <- RefineMargin(
+  parallel_chart <- FiberMargin(
     single$xy, single$labels, single$samples, workers = 2
   )
   attr(serial_chart, "workers") <- NULL
@@ -185,7 +185,7 @@ test_that("CRAN core limits cap explicit worker budgets", {
   simulation <- simulate_spatial_domains(
     n = 600, pattern = "rings", noise = 0.20, samples = 2, seed = 1653
   )
-  refined <- RefineMargin(
+  refined <- FiberMargin(
     simulation$xy, simulation$labels, simulation$samples, workers = 8
   )
 
@@ -197,7 +197,7 @@ test_that("samples without two varying axes are rejected", {
   labels <- factor(rep(c("A", "B", "C"), length.out = 30))
 
   expect_error(
-    RefineMargin(xy, labels, workers = 1),
+    FiberMargin(xy, labels, workers = 1),
     "fewer than two varying coordinate axes"
   )
 })
@@ -207,10 +207,10 @@ test_that("constant axes are removed separately within each specimen", {
     n = 1800, pattern = "jagged_stripes", noise = 0.20,
     samples = 3, seed = 1661
   )
-  two_dimensional <- RefineMargin(
+  two_dimensional <- FiberMargin(
     simulation$xy, simulation$labels, simulation$samples, workers = 1
   )
-  constant_z <- RefineMargin(
+  constant_z <- FiberMargin(
     cbind(simulation$xy, z = 7), simulation$labels,
     simulation$samples, workers = 1
   )
@@ -226,7 +226,7 @@ test_that("constant axes are removed separately within each specimen", {
   )
   mixed_labels <- factor(rep(c("A", "B", "C"), length.out = 2L * n))
   mixed_samples <- rep(c("flat", "volume"), each = n)
-  mixed <- RefineMargin(
+  mixed <- FiberMargin(
     mixed_xy, mixed_labels, mixed_samples, workers = 2
   )
   expect_identical(
@@ -247,8 +247,8 @@ test_that("genuine three-dimensional structure is not flattened", {
   noisy[corrupted] <- sample(levels(noisy), length(corrupted), replace = TRUE)
   noisy <- factor(noisy, levels = levels(truth))
 
-  refined_3d <- RefineMargin(xyz, noisy, workers = 1)
-  refined_2d <- RefineMargin(xyz[, 1:2], noisy, workers = 1)
+  refined_3d <- FiberMargin(xyz, noisy, workers = 1)
+  refined_2d <- FiberMargin(xyz[, 1:2], noisy, workers = 1)
 
   expect_identical(unname(attr(refined_3d, "dimensions_used")), 3L)
   expect_gt(sum(refined_3d != refined_2d), 0L)
@@ -260,13 +260,13 @@ test_that("row permutation is equivariant", {
     n = 1800, pattern = "branching", noise = 0.22,
     samples = 3, seed = 1664
   )
-  baseline <- RefineMargin(
+  baseline <- FiberMargin(
     simulation$xy, simulation$labels, simulation$samples, workers = 1
   )
   set.seed(1665)
   permutation <- sample(nrow(simulation$xy))
   inverse <- order(permutation)
-  permuted <- RefineMargin(
+  permuted <- FiberMargin(
     simulation$xy[permutation, , drop = FALSE],
     simulation$labels[permutation], simulation$samples[permutation],
     workers = 2
@@ -291,10 +291,10 @@ test_that("translation and uniform scaling preserve the result", {
     n = 1500, pattern = "rings", noise = 0.20,
     samples = 2, seed = 1666
   )
-  baseline <- RefineMargin(
+  baseline <- FiberMargin(
     simulation$xy, simulation$labels, simulation$samples, workers = 1
   )
-  transformed <- RefineMargin(
+  transformed <- FiberMargin(
     17 + 3.5 * simulation$xy, simulation$labels,
     simulation$samples, workers = 2
   )
@@ -310,14 +310,14 @@ test_that("integer character and factor inputs agree", {
   )
   label_codes <- as.integer(simulation$labels)
   sample_codes <- as.integer(factor(simulation$samples))
-  integer_result <- RefineMargin(
+  integer_result <- FiberMargin(
     simulation$xy, label_codes, sample_codes, workers = 1
   )
-  character_result <- RefineMargin(
+  character_result <- FiberMargin(
     simulation$xy, as.character(label_codes), as.character(sample_codes),
     workers = 1
   )
-  factor_result <- RefineMargin(
+  factor_result <- FiberMargin(
     simulation$xy, factor(as.character(label_codes)),
     factor(as.character(sample_codes)), workers = 1
   )
@@ -333,7 +333,7 @@ test_that("names levels and class-loss summaries are preserved", {
   labels[which.min(rowSums((xy - 10)^2))] <- "B"
   names(labels) <- rownames(xy)
 
-  refined <- RefineMargin(xy, labels, workers = 1)
+  refined <- FiberMargin(xy, labels, workers = 1)
 
   expect_identical(levels(refined), levels(labels))
   expect_identical(names(refined), names(labels))
@@ -350,29 +350,29 @@ test_that("input validation reports each contract violation", {
   xy <- matrix(runif(60), ncol = 2)
   labels <- factor(rep(c("A", "B", "C"), length.out = nrow(xy)))
 
-  expect_error(RefineMargin(xy[, 1, drop = FALSE], labels),
+  expect_error(FiberMargin(xy[, 1, drop = FALSE], labels),
                "exactly two or three")
-  expect_error(RefineMargin(cbind(xy, xy), labels),
+  expect_error(FiberMargin(cbind(xy, xy), labels),
                "exactly two or three")
   nonfinite <- xy
   nonfinite[1, 1] <- Inf
-  expect_error(RefineMargin(nonfinite, labels), "finite coordinates")
-  expect_error(RefineMargin(xy, labels[-1]), "one entry per row")
+  expect_error(FiberMargin(nonfinite, labels), "finite coordinates")
+  expect_error(FiberMargin(xy, labels[-1]), "one entry per row")
   missing_labels <- labels
   missing_labels[1] <- NA
-  expect_error(RefineMargin(xy, missing_labels), "missing assignments")
-  expect_error(RefineMargin(xy, labels, samples = 1:2),
+  expect_error(FiberMargin(xy, missing_labels), "missing assignments")
+  expect_error(FiberMargin(xy, labels, samples = 1:2),
                "one identifier per row")
   missing_samples <- rep("sample", nrow(xy))
   missing_samples[1] <- NA
-  expect_error(RefineMargin(xy, labels, missing_samples),
+  expect_error(FiberMargin(xy, labels, missing_samples),
                "missing identifiers")
   for (invalid in list(0, -1, 1.5, 65, Inf, NA_real_, "2", c(1, 2))) {
-    expect_error(RefineMargin(xy, labels, workers = invalid),
+    expect_error(FiberMargin(xy, labels, workers = invalid),
                  "positive integer")
   }
   line_xy <- cbind(x = seq_len(nrow(xy)), y = 0)
-  expect_error(RefineMargin(line_xy, labels),
+  expect_error(FiberMargin(line_xy, labels),
                "fewer than two varying")
 })
 
@@ -385,8 +385,8 @@ test_that("duplicate coordinates and quantized key collisions are row-order inva
   for (coordinates in list(xy, distinct)) {
     for (k in 2:3) {
       y <- factor(sample(rep_len(LETTERS[seq_len(k)], nrow(xy))))
-      original <- RefineMargin(coordinates, y, workers = 1)
-      shuffled <- RefineMargin(coordinates[permutation, ], y[permutation], workers = 4)
+      original <- FiberMargin(coordinates, y, workers = 1)
+      shuffled <- FiberMargin(coordinates[permutation, ], y[permutation], workers = 4)
       expect_identical(as.integer(original), as.integer(shuffled)[inverse])
       for (attribute in c("candidate", "margin_score", "required", "repair_margin",
                           "atlas_dispersion", "isolation", "changed")) {
@@ -401,7 +401,7 @@ test_that("many interleaved specimens preserve the original row order", {
   samples <- rep(seq_len(250L), 4L)
   xy <- local[rep(seq_len(4L), each = 250L), ]
   labels <- factor(rep(c("A", "B", "C", "A"), each = 250L))
-  refined <- RefineMargin(xy, labels, samples, workers = 2)
+  refined <- FiberMargin(xy, labels, samples, workers = 2)
   expect_identical(as.integer(refined), as.integer(labels))
   expect_identical(unname(attr(refined, "sample_sizes")), rep.int(4L, 250L))
 })
@@ -410,8 +410,8 @@ test_that("binary distance ties at the ballot cutoff are row-order invariant", {
   xy <- as.matrix(expand.grid(x = 0:11, y = 0:9))
   original <- factor(ifelse((xy[, 1] + 2 * xy[, 2]) %% 7 < 3, "A", "B"))
   p <- c(seq(2L, nrow(xy), 2L), seq(1L, nrow(xy), 2L))
-  a <- RefineMargin(xy, original, workers = 1L)
-  b <- RefineMargin(xy[p, ], original[p], workers = 1L)
+  a <- FiberMargin(xy, original, workers = 1L)
+  b <- FiberMargin(xy[p, ], original[p], workers = 1L)
   expect_identical(as.integer(a), as.integer(b)[order(p)])
   expect_identical(attr(a, "margin_score"), attr(b, "margin_score")[order(p)])
 })
@@ -421,7 +421,7 @@ test_that("large multi-sample execution respects one CPU budget", {
     n = 12000, pattern = "jagged_stripes", noise = 0.20,
     samples = 8, seed = 1668
   )
-  refined <- RefineMargin(
+  refined <- FiberMargin(
     simulation$xy, simulation$labels, simulation$samples, workers = 4
   )
 
@@ -436,7 +436,7 @@ test_that("an unused factor level is not introduced in a regular spatial sample"
   set.seed(1701)
   xy <- matrix(runif(800), ncol = 2)
   labels <- factor(ifelse(xy[, 1] < 0.5, "A", "B"), levels = c("C", "A", "B"))
-  refined <- RefineMargin(xy, labels, workers = 1)
+  refined <- FiberMargin(xy, labels, workers = 1)
   expect_false(any(refined == "C"))
   expect_false(any(attr(refined, "candidate") == "C"))
 })
@@ -452,19 +452,19 @@ test_that("FiberMargin rejects arbitrary tuning controls", {
     ),
     "no tuning controls"
   )
-  expect_error(RefineMargin(xy, labels, transport = "adaptive"), "standard.*short")
+  expect_error(FiberMargin(xy, labels, transport = "adaptive"), "standard.*short")
 })
 
 test_that("the short preset retains more minority sheet sites on a fixed 3D fixture", {
   x <- simulate_volumetric_domains(n = 3000L, shape = "thin_folded_sheets",
                                    noise = 0.12, seed = 6L)
-  standard <- RefineMargin(x$xy, x$labels, x$samples, workers = 1L)
-  expect_identical(standard, RefineMargin(x$xy, x$labels, x$samples,
+  standard <- FiberMargin(x$xy, x$labels, x$samples, workers = 1L)
+  expect_identical(standard, FiberMargin(x$xy, x$labels, x$samples,
                                          workers = 1L, transport = "standard"))
-  short <- RefineMargin(x$xy, x$labels, x$samples, workers = 1L, transport = "short")
+  short <- FiberMargin(x$xy, x$labels, x$samples, workers = 1L, transport = "short")
   expect_gt(mean(short[x$sparse] == x$truth[x$sparse]),
             mean(standard[x$sparse] == x$truth[x$sparse]))
-  threaded <- RefineMargin(x$xy, x$labels, x$samples, workers = 2L, transport = "short")
+  threaded <- FiberMargin(x$xy, x$labels, x$samples, workers = 2L, transport = "short")
   attr(threaded, "workers") <- attr(short, "workers")
   expect_identical(threaded, short)
 })
