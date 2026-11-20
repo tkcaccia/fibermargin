@@ -19,6 +19,9 @@ cases <- list(
     n = 60000L, shape = "folded_layers", acquisition = "irregular_z", samples = 3L,
     noise_type = "region", seed = 810003L
   ),
+  thin_3d = simulate_volumetric_domains(
+    n = 3000L, shape = "thin_folded_sheets", noise = 0.12, seed = 6L
+  ),
   DLPFC = load_spatial_benchmark("dlpfc", scenario = 1L, seed = 810004L),
   CRC = load_spatial_benchmark("crc", scenario = "CRC_random_25_r1", seed = 1040043L)
 )
@@ -34,11 +37,17 @@ for (name in names(cases)) {
   ), num.eq = FALSE))
   attr(serial, "workers") <- attr(parallel, "workers") <- NULL
   stopifnot(identical(serial, parallel, num.eq = FALSE))
-  message(name, ": labels and diagnostics identical across workers and aliases")
+  one <- RefineMargin(case$xy, case$labels, case$samples, workers = 1L, transport = "short")
+  four <- RefineMargin(case$xy, case$labels, case$samples, workers = 4L, transport = "short")
+  attr(one, "workers") <- attr(four, "workers") <- NULL
+  stopifnot(identical(one, four, num.eq = FALSE))
+  message(name, ": labels and diagnostics identical across workers for both presets")
 }
-metrics <- benchmark_spatial_refiners(cases, seed = 820001L)
-stopifnot(nrow(metrics) == 2L * length(cases), all(is.na(metrics$error)),
-          identical(unique(metrics$method), c("Initial", "FiberMargin")))
+methods <- list(FiberMargin = RefineMargin,
+  Short = function(xy, labels, samples) RefineMargin(xy, labels, samples, transport = "short"))
+metrics <- benchmark_spatial_refiners(cases, methods, seed = 820001L)
+stopifnot(nrow(metrics) == 3L * length(cases), all(is.na(metrics$error)),
+          identical(unique(metrics$method), c("Initial", "FiberMargin", "Short")))
 utils::write.csv(metrics, file.path(output, "metrics.csv"), row.names = FALSE)
 writeLines(c(
   paste("fibermargin", utils::packageVersion("fibermargin")),

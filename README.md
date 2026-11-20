@@ -7,13 +7,15 @@ FiberMargin performs training-free repair of categorical masks and spatial label
 It is a post-processing method: upstream segmentation, clustering, or annotation
 remains unchanged. A deterministic atlas of rotated Hilbert paths transports
 leave-self-out class evidence from both directions using normalized path length
-only. Its class score is the two-sided enclosure
+only. Its two-sided class score is
 `(sqrt(left) + sqrt(right))^2`. FiberMargin changes a label only when its
 full-atlas margin clears a conservative chart-disagreement barrier; locally
 isolated points receive extra protection at that decision.
 
-The package exposes one production refiner with four arguments. It does not need
-expression values, a graph, training labels, or user-selected tuning parameters.
+The default does not need expression values, a graph, training labels, or
+parameter tuning. A shorter transport preset is available for multiclass
+fields with narrow regions. It reduces the influence of distant labels but
+does not consistently improve genuine segmentation predictions.
 
 ## Installation
 
@@ -23,6 +25,17 @@ remotes::install_github("tkcaccia/fibermargin", build_vignettes = TRUE)
 ```
 
 ## Basic Use
+
+The default uses five median path edges. To compare the shorter range of
+2.5 median edges on an annotated representative specimen:
+
+~~~r
+standard <- RefineMargin(xy, labels, samples)
+short <- RefineMargin(xy, labels, samples, transport = "short")
+~~~
+
+Choose based on damage to correct labels as well as accuracy and thin-class
+recall. The preset does not affect binary fields.
 
 ```r
 library(fibermargin)

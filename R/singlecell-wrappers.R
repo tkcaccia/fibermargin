@@ -18,12 +18,14 @@
 #'   observations keep their input labels. For Giotto, `spat_unit`,
 #'   `feat_type`, and `location` select the spatial unit, feature type,
 #'   and spatial-location layer; `NULL` uses Giotto's defaults.
+#' @param transport Multiclass transport preset passed to [RefineMargin()].
 #' @return The updated object. Use [RefineMargin()] directly to obtain
 #'   pointwise and sample-level diagnostics.
 #' @export
 RunFiberMargin <- function(object, cluster.column = NULL,
                            output.column = "FiberMargin_clusters",
-                           sample.column = NULL, workers = NULL, ...) {
+                           sample.column = NULL, workers = NULL, ...,
+                           transport = "standard") {
   .fm_column_name(cluster.column, "cluster.column", optional = TRUE)
   .fm_column_name(sample.column, "sample.column", optional = TRUE)
   .fm_column_name(output.column, "output.column")
@@ -33,7 +35,8 @@ RunFiberMargin <- function(object, cluster.column = NULL,
 #' @export
 RunFiberMargin.default <- function(object, cluster.column = NULL,
                                     output.column = "FiberMargin_clusters",
-                                    sample.column = NULL, workers = NULL, ...) {
+                                    sample.column = NULL, workers = NULL, ...,
+                                    transport = "standard") {
   stop("`object` must be a Seurat, SpatialExperiment, or Giotto Suite object.",
        call. = FALSE)
 }
@@ -41,7 +44,8 @@ RunFiberMargin.default <- function(object, cluster.column = NULL,
 #' @export
 RunFiberMargin.SpatialExperiment <- function(object, cluster.column = NULL,
                                              output.column = "FiberMargin_clusters",
-                                             sample.column = NULL, workers = NULL, ...) {
+                                             sample.column = NULL, workers = NULL, ...,
+                                             transport = "standard") {
   if (...length()) stop("Unexpected arguments for SpatialExperiment.", call. = FALSE)
   .fm_require("SpatialExperiment")
   .fm_require("SummarizedExperiment")
@@ -51,7 +55,7 @@ RunFiberMargin.SpatialExperiment <- function(object, cluster.column = NULL,
   samples <- .fm_samples(metadata, sample.column, default = "sample_id")
   # spatialCoords() is column-aligned by the SpatialExperiment class.
   xy <- SpatialExperiment::spatialCoords(object)
-  metadata[[output.column]] <- .fm_refined_factor(xy, clusters, samples, workers)
+  metadata[[output.column]] <- .fm_refined_factor(xy, clusters, samples, workers, transport)
   SummarizedExperiment::colData(object) <- metadata
   object
 }
@@ -60,7 +64,7 @@ RunFiberMargin.SpatialExperiment <- function(object, cluster.column = NULL,
 RunFiberMargin.Seurat <- function(object, cluster.column = NULL,
                                   output.column = "FiberMargin_clusters",
                                   sample.column = NULL, workers = NULL, ...,
-                                  images = NULL) {
+                                  transport = "standard", images = NULL) {
   if (...length()) stop("Unexpected arguments for Seurat; use named `images`.",
                         call. = FALSE)
   .fm_require("Seurat")
@@ -116,7 +120,7 @@ RunFiberMargin.Seurat <- function(object, cluster.column = NULL,
     }
     samples <- interaction(samples, factor(subgroups), drop = TRUE, sep = ":")
   }
-  clusters[rows] <- .fm_refined_factor(xy, clusters[rows], samples, workers)
+  clusters[rows] <- .fm_refined_factor(xy, clusters[rows], samples, workers, transport)
   names(clusters) <- ids
   SeuratObject::AddMetaData(object, metadata = clusters, col.name = output.column)
 }
@@ -125,7 +129,8 @@ RunFiberMargin.Seurat <- function(object, cluster.column = NULL,
 RunFiberMargin.giotto <- function(object, cluster.column = NULL,
                                   output.column = "FiberMargin_clusters",
                                   sample.column = NULL, workers = NULL, ...,
-                                  spat_unit = NULL, feat_type = NULL, location = NULL) {
+                                  transport = "standard", spat_unit = NULL,
+                                  feat_type = NULL, location = NULL) {
   if (...length()) stop("Unexpected arguments for Giotto; use named layer selectors.",
                         call. = FALSE)
   .fm_require("GiottoClass")
@@ -143,7 +148,7 @@ RunFiberMargin.giotto <- function(object, cluster.column = NULL,
   rows <- match(ids, location_ids)
   if (anyNA(rows)) stop("Giotto spatial locations do not cover every selected cell ID.",
                         call. = FALSE)
-  refined <- .fm_refined_factor(xy[rows, , drop = FALSE], clusters, samples, workers)
+  refined <- .fm_refined_factor(xy[rows, , drop = FALSE], clusters, samples, workers, transport)
   added <- data.frame(cell_ID = ids, stringsAsFactors = FALSE)
   added[[output.column]] <- refined
   GiottoClass::addCellMetadata(object, spat_unit = spat_unit, feat_type = feat_type,
@@ -243,8 +248,9 @@ RunFiberMargin.giotto <- function(object, cluster.column = NULL,
   values
 }
 
-.fm_refined_factor <- function(xy, clusters, samples, workers) {
-  refined <- RefineMargin(xy, clusters, samples = samples, workers = workers)
+.fm_refined_factor <- function(xy, clusters, samples, workers, transport) {
+  refined <- RefineMargin(xy, clusters, samples = samples, workers = workers,
+                          transport = transport)
   # Container metadata stores assignments, not per-point engine diagnostics.
   structure(as.integer(refined), levels = levels(refined), class = "factor")
 }

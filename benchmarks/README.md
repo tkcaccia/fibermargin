@@ -8,10 +8,11 @@ Rscript benchmarks/benchmark_public_api.R /tmp/fibermargin-api-benchmark
 Rscript benchmarks/benchmark_release_workers.R /tmp/fibermargin-worker-benchmark
 ```
 
-The public API audit runs simulations in 2D and genuine 3D, and one packaged
-corruption each for DLPFC and CRC. It checks that the renamed entry point and
-compatibility alias give identical labels and diagnostics, and checks exact
-equality with one and four workers apart from the worker-count attribute.
+The public API audit runs simulations in 2D and genuine 3D, including a
+thin-sheet fixture, and one packaged corruption each for DLPFC and CRC.
+It scores the standard and short presets against the same input. It checks
+the compatibility alias for the default and verifies exact equality between
+one and four workers for both presets, apart from the worker-count attribute.
 The report uses the default public benchmark scorer and writes all metrics
 and R session information. These are regression checks, not new estimates of
 real-world annotation accuracy.

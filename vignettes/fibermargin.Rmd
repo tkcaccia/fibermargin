@@ -61,7 +61,8 @@ probabilities, clean anchors, or reference labels during repair.
 
 There are two fixed computational routes:
 
-- Multiclass fields use the two-sided path-enclosure operator.
+- Multiclass fields use two-sided transport with either the standard
+  range of five median path edges or the short preset at 2.5.
 - Binary fields use a distinct fixed nearest-neighbour ballot specialization.
 
 The package accepts irregular 2D or 3D coordinates through
@@ -184,7 +185,7 @@ layers, specify `location` along with `spat_unit` or `feat_type` if needed.
 ## `RefineMargin()`
 
 ```r
-RefineMargin(xy, labels, samples = NULL, workers = NULL)
+RefineMargin(xy, labels, samples = NULL, workers = NULL, transport = "standard")
 ```
 
 `xy` must be a finite numeric matrix with two or three columns. `labels` must
@@ -192,6 +193,11 @@ contain one non-missing categorical value per row. `samples` is optional and
 defines independent coordinate systems. Integer, character, and factor specimen
 identifiers are accepted. `workers = NULL` uses a conservative automatic CPU
 budget; set an integer from 1 to 64 for an explicit total budget.
+
+Use `transport = "short"` to test a shorter evidence range on representative
+multiclass inputs. It can preserve narrow regions, but neither preset can
+reliably distinguish a coherent labeling error from a genuine region using
+coordinates and labels alone. The default and the binary rule are unchanged.
 
 Effective dimensionality is determined separately within every specimen.
 Zero-range axes are removed before refinement. At least two varying axes must
@@ -423,7 +429,7 @@ vapply(
 ## `clean_categorical_mask()`
 
 ```r
-clean_categorical_mask(mask, samples = NULL, workers = NULL)
+clean_categorical_mask(mask, samples = NULL, workers = NULL, transport = "standard")
 ```
 
 The function preserves dimensions, dimnames, storage type, and `NA` void cells.

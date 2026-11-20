@@ -157,6 +157,10 @@ necessary, `spat_unit` or `feat_type`.
 - **Inspect changes.** A label can disappear after refinement. For candidate
   labels, repair margins, and per-specimen summaries, call `RefineMargin()`
   with the same coordinates, assignments, and specimen identifiers.
+- **Validate a shorter range.** For multiclass fields, try
+  `RunFiberMargin(..., transport = "short")` with a different output column.
+  Compare damage and thin-class recall on representative reference labels
+  before using the alternative.
 
 ```{r diagnostics}
 attr(refined, "labels_changed")

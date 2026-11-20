@@ -126,3 +126,13 @@ test_that("seeded mask corruption restores RNG on success and failure", {
     expect_identical(get(".Random.seed", envir = .GlobalEnv), before)
   }, finally = preserve())
 })
+
+test_that("masks pass the chosen transport preset to the coordinate engine", {
+  mask <- matrix(rep(rep(1:3, each = 4L), 12L), nrow = 12L)
+  mask[c(19L, 127L)] <- 2L
+  output <- clean_categorical_mask(mask, workers = 1L, transport = "short")
+  fit <- RefineMargin(arrayInd(seq_along(mask), dim(mask)), as.vector(mask),
+                       workers = 1L, transport = "short")
+  expect_identical(as.integer(output), as.integer(fit))
+  expect_identical(as.vector(attr(output, "repair_margin")), attr(fit, "repair_margin"))
+})

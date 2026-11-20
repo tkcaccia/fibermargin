@@ -21,11 +21,13 @@ constexpr double kSqrtThreeConjugate = 0.7320508075688772;
 constexpr double kPi = 3.141592653589793238462643383279502884;
 constexpr int kViews2D = 9;
 constexpr int kViews3D = 12;
-constexpr double kTransportRange = 5.0;
+constexpr double kStandardTransportRange = 5.0;
+constexpr double kShortTransportRange = 2.5;
 constexpr int kMaxWorkers = 64;
 
 struct Settings {
   int threads = 1;
+  double transport_range = kStandardTransportRange;
 };
 
 int list_int(const List& control, const char* name, int fallback) {
@@ -34,15 +36,19 @@ int list_int(const List& control, const char* name, int fallback) {
 }
 
 Settings parse_settings(const List& control) {
-  if (control.size() > 1 ||
-      (control.size() == 1 && !control.containsElementNamed("threads"))) {
-    stop("FiberMargin has no tuning controls; use `workers` to set CPU parallelism.");
+  const int known = control.containsElementNamed("threads") +
+                    control.containsElementNamed("short_transport");
+  if (control.size() != known) {
+    stop("FiberMargin has no tuning controls beyond the documented presets.");
   }
   Settings settings;
   settings.threads = list_int(control, "threads", settings.threads);
   if (settings.threads < 1 || settings.threads > kMaxWorkers) {
     stop("FiberMargin threads must be between 1 and 64.");
   }
+  const int short_transport = list_int(control, "short_transport", 0);
+  if (short_transport != 0 && short_transport != 1) stop("Invalid transport preset.");
+  if (short_transport) settings.transport_range = kShortTransportRange;
   return settings;
 }
 
@@ -249,7 +255,8 @@ int compare_coordinates(const std::vector<double>& coordinates, int dimensions,
 }
 
 template <int dimensions>
-Geometry path_geometry(const std::vector<double>& coordinates, int size, int view) {
+Geometry path_geometry(const std::vector<double>& coordinates, int size, int view,
+                       double transport_range) {
   Geometry geometry;
   geometry.order.resize(size);
   geometry.isolation.assign(size, 1.0);
@@ -307,7 +314,7 @@ Geometry path_geometry(const std::vector<double>& coordinates, int size, int vie
     }
     begin = end;
   }
-  for (double& edge : step) edge = std::exp(-(edge / reference) / kTransportRange);
+  for (double& edge : step) edge = std::exp(-(edge / reference) / transport_range);
   geometry.decay = std::move(step);
   return geometry;
 }
@@ -678,8 +685,9 @@ SampleResult refine_sample(const std::vector<double>& coordinates,
   run_workers(thread_count, [&](int thread) {
     std::vector<double> field;
     for (int view = thread; view < charts; view += thread_count) {
-      const Geometry geometry = dimensions == 2 ? path_geometry<2>(coordinates, size, view) :
-        path_geometry<3>(coordinates, size, view);
+      const Geometry geometry = dimensions == 2 ?
+        path_geometry<2>(coordinates, size, view, settings.transport_range) :
+        path_geometry<3>(coordinates, size, view, settings.transport_range);
       two_sided_enclosure_field(labels, classes, geometry, field);
       float* action = chart_action.data() + static_cast<std::size_t>(view) * row_class;
       for (int row = 0; row < size; ++row) {

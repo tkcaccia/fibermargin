@@ -12,6 +12,7 @@
 #'   Different sample identifiers are cleaned independently.
 #' @param workers Optional CPU budget used across samples and independent
 #'   spatial charts. `NULL` uses up to two physical cores when possible.
+#' @param transport Multiclass transport preset passed to [RefineMargin()].
 #'
 #' @return A cleaned mask with the dimensions, dimnames, storage type, and void
 #'   locations of `mask`. Pointwise arrays are attached as attributes
@@ -24,7 +25,9 @@
 #' mask <- matrix(c(rep("A", 50), rep("B", 50)), nrow = 10)
 #' mask[5, 5] <- "B"
 #' cleaned <- clean_categorical_mask(mask, workers = 1)
-clean_categorical_mask <- function(mask, samples = NULL, workers = NULL) {
+clean_categorical_mask <- function(mask, samples = NULL, workers = NULL,
+                                   transport = c("standard", "short")) {
+  transport <- match.arg(transport)
   dimensions <- dim(mask)
   if (is.null(dimensions) || !length(dimensions) %in% c(2L, 3L) ||
       any(dimensions < 1L)) {
@@ -55,7 +58,8 @@ clean_categorical_mask <- function(mask, samples = NULL, workers = NULL) {
     xy = coordinates,
     labels = mask[keep],
     samples = sample_values,
-    workers = workers
+    workers = workers,
+    transport = transport
   )
 
   output <- .restore_mask_values(mask, keep, refined)

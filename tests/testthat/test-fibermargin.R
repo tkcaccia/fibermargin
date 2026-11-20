@@ -77,6 +77,7 @@ test_that("binary local-volume evidence uses the shared margin admission rule", 
   noisy <- factor(noisy, levels = levels(labels))
 
   refined <- RefineMargin(xy, noisy, workers = 1)
+  expect_identical(refined, RefineMargin(xy, noisy, workers = 1, transport = "short"))
   observed <- as.integer(noisy)
   candidate <- as.integer(attr(refined, "candidate"))
 
@@ -440,7 +441,7 @@ test_that("an unused factor level is not introduced in a regular spatial sample"
   expect_false(any(attr(refined, "candidate") == "C"))
 })
 
-test_that("FiberMargin exposes no mathematical tuning controls", {
+test_that("FiberMargin rejects arbitrary tuning controls", {
   set.seed(1801)
   xy <- matrix(runif(82), ncol = 2)
   labels <- factor(c(rep("A", 20), rep("B", 21)), levels = c("A", "B"))
@@ -451,6 +452,21 @@ test_that("FiberMargin exposes no mathematical tuning controls", {
     ),
     "no tuning controls"
   )
+  expect_error(RefineMargin(xy, labels, transport = "adaptive"), "standard.*short")
+})
+
+test_that("the short preset retains more minority sheet sites on a fixed 3D fixture", {
+  x <- simulate_volumetric_domains(n = 3000L, shape = "thin_folded_sheets",
+                                   noise = 0.12, seed = 6L)
+  standard <- RefineMargin(x$xy, x$labels, x$samples, workers = 1L)
+  expect_identical(standard, RefineMargin(x$xy, x$labels, x$samples,
+                                         workers = 1L, transport = "standard"))
+  short <- RefineMargin(x$xy, x$labels, x$samples, workers = 1L, transport = "short")
+  expect_gt(mean(short[x$sparse] == x$truth[x$sparse]),
+            mean(standard[x$sparse] == x$truth[x$sparse]))
+  threaded <- RefineMargin(x$xy, x$labels, x$samples, workers = 2L, transport = "short")
+  attr(threaded, "workers") <- attr(short, "workers")
+  expect_identical(threaded, short)
 })
 
 test_that("fixed-k modal reference uses the shared neighbour-mode kernel", {

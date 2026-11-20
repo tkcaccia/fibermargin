@@ -1,3 +1,13 @@
+# fibermargin 0.3.0
+
+- `RefineMargin()`, `RunFiberMargin()`, and `clean_categorical_mask()`
+  accept `transport = "short"` for multiclass repair at 2.5 median path
+  edges. This preset reduces the influence of distant labels; there is
+  still one transport sweep in each direction.
+- The default (`transport = "standard"`, five median path edges), binary
+  voting rule, admission formula, and output attributes are unchanged.
+  Use the short preset only after checking representative labels.
+
 # fibermargin 0.2.4
 
 - Use `RefineMargin()` for coordinate-and-label refinement. The former

@@ -1,44 +1,22 @@
-## Resubmission
+## Update to fibermargin 0.3.0
 
-Version 0.2.0 includes the earlier requested CRAN changes:
+The default algorithm and outputs are unchanged. The three refinement
+interfaces now accept an optional short transport preset for multiclass
+coordinates. The package retains one implementation; the preset changes
+only a fixed decay range. No new mandatory dependencies or data downloads
+were added. The vignettes and reference pages document the choice.
 
-* No reference was added to `DESCRIPTION` because no publication currently
-  describes the FiberMargin method.
-* Vignettes no longer change `options()`, and every graphical `par()` change is
-  paired with restoration of the complete prior graphical state.
-* `load_spatial_benchmark()` no longer sets an internal fixed seed. Its optional
-  `seed = NULL` argument leaves seed selection to the user; a supplied integer
-  provides reproducible CRC corruption generation.
+## R CMD check
 
-It also stabilizes coordinate ties, makes CPU worker cleanup exception-safe,
-and indexes specimens in one pass. There is no change to the public function
-signature. New tests exercise coordinate ties and interleaved specimens.
+Local source tarball checked with `R CMD check --as-cran` on macOS
+arm64 under R 4.6.0: 0 errors, 0 warnings, 1 note.
 
-## R CMD check results
+The incoming feasibility note listed two items:
 
-Tested with R 4.6.0 on macOS arm64 using:
-
-```text
-R CMD check --as-cran fibermargin_0.2.0.tar.gz
-```
-
-Result: 0 errors, 0 warnings, 1 note.
-
-The incoming URL check received HTTP 429 (Too Many Requests) from the 10x
-Genomics dataset page documented in `man/colorectal_benchmark.Rd`:
-
-```text
-https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-libraries-of-human-crc-v4
-```
-
-The URL is the public source page for the bundled CRC benchmark derivative.
-The remote server rate-limited the automated check; all package checks
-completed successfully.
-
-## Package scope
-
-FiberMargin contains a C++17 implementation and an R interface. The source
-tarball includes two compact coordinate-and-label benchmark derivatives. Their
-source, attribution, and redistribution terms are recorded in `inst/extdata`.
-No external data are downloaded during installation, examples, tests, or
-vignette construction.
+* GiottoClass is an optional enhancement distributed by Giotto Suite.
+  Core functionality, installation and vignette construction do not
+  require it. Integration examples and tests detect its availability.
+* The 10x Genomics dataset URL in `man/colorectal_benchmark.Rd` returned
+  HTTP 429 to the automated URL check. It is the original public data
+  attribution URL. The included coordinate-and-label derivative has
+  source, license, and attribution information in `inst/extdata`.

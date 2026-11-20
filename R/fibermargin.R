@@ -3,8 +3,8 @@
 #' `RefineMargin()` applies FiberMargin to a coordinate-indexed label
 #' field. The function is deterministic: no training phase is run and all route
 #' constants are fixed internally. For multiclass data, each class receives a
-#' two-sided local evidence score from short directional neighborhood sweeps; in
-#' the binary case it applies a fixed nearest-neighbour ballot rule.
+#' two-sided local evidence score with a fixed transport range. In the binary
+#' case it applies a fixed nearest-neighbour ballot rule.
 #'
 #' The method can process multiple specimens at once. `samples` defines
 #' independent coordinate systems: coordinates and labels are never shared
@@ -25,6 +25,10 @@
 #'   Supply an integer from 1 to 64; `NULL` uses up to two physical cores.
 #'   The budget is never multiplied by the
 #'   number of specimens, and results are independent of the worker count.
+#' @param transport Multiclass transport preset: `"standard"` uses five median
+#'   path edges; `"short"` uses 2.5. The short preset can help retain narrow
+#'   regions but should be validated on representative inputs. Binary repair
+#'   is unchanged by this setting.
 #'
 #' @return A factor with the levels and names of `labels`; when `labels` is
 #'   unnamed, row names from `xy` are used as names. Attributes
@@ -55,8 +59,11 @@
 #'   RefineMargin(xyz, sim$labels, sim$samples, workers = 1),
 #'   RefineMargin(sim$xy, sim$labels, sim$samples, workers = 1)
 #' ))
-RefineMargin <- function(xy, labels, samples = NULL, workers = NULL) {
-  .fiber_margin_engine(xy, labels, samples, workers = workers, control = list())
+RefineMargin <- function(xy, labels, samples = NULL, workers = NULL,
+                         transport = c("standard", "short")) {
+  transport <- match.arg(transport)
+  control <- if (transport == "short") list(short_transport = 1L) else list()
+  .fiber_margin_engine(xy, labels, samples, workers = workers, control = control)
 }
 
 #' @rdname RefineMargin

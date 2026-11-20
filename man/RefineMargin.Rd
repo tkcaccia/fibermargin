@@ -5,9 +5,11 @@
 \alias{refine_spatial_labels}
 \title{Refine noisy categorical labels on a spatial domain}
 \usage{
-RefineMargin(xy, labels, samples = NULL, workers = NULL)
+RefineMargin(xy, labels, samples = NULL, workers = NULL,
+             transport = c("standard", "short"))
 
-refine_spatial_labels(xy, labels, samples = NULL, workers = NULL)
+refine_spatial_labels(xy, labels, samples = NULL, workers = NULL,
+                      transport = c("standard", "short"))
 }
 \arguments{
 \item{xy}{Numeric matrix with two or three spatial coordinates per row.}
@@ -21,6 +23,11 @@ independently.}
   Supply an integer from 1 to 64; `NULL` uses up to two physical cores.
   The budget is never multiplied by the
 number of specimens, and results are independent of the worker count.}
+
+\item{transport}{Multiclass preset. \code{"standard"} (default) uses five
+median path edges and \code{"short"} uses 2.5. The short preset can help
+retain narrow regions but should be validated on representative inputs.
+The binary rule is unaffected.}
 }
 \value{
 A factor with the levels and names of `labels`; when `labels` is
@@ -44,8 +51,8 @@ A factor with the levels and names of `labels`; when `labels` is
 `RefineMargin()` applies FiberMargin to a coordinate-indexed label
 field. The function is deterministic: no training phase is run and all route
 constants are fixed internally. For multiclass data, each class receives a
-two-sided local evidence score from short directional neighborhood sweeps; in
-the binary case it applies a fixed nearest-neighbour ballot rule.
+two-sided local evidence score with a fixed transport range. In the binary
+case it applies a fixed nearest-neighbour ballot rule.
 }
 \details{
 The method can process multiple specimens at once. `samples` defines

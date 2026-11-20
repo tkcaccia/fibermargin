@@ -38,6 +38,11 @@ test_that("SpatialExperiment writes the same 3D specimen-wise labels as RefineMa
   out <- RunFiberMargin(spe, cluster.column = "clusters", workers = 1L)
   expect_s4_class(out, "SpatialExperiment")
   expect_identical(out$FiberMargin_clusters, plain_labels(direct))
+  short <- RunFiberMargin(spe, cluster.column = "clusters", workers = 1L,
+                          transport = "short")
+  expect_identical(short$FiberMargin_clusters, plain_labels(
+    RefineMargin(xyz, x$clusters, x$samples, workers = 1L, transport = "short")
+  ))
   expect_identical(out$clusters, spe$clusters)
   expect_identical(colnames(out), x$ids)
   expect_identical(SpatialExperiment::spatialCoords(out), SpatialExperiment::spatialCoords(spe))

@@ -17,15 +17,15 @@ library(fibermargin)
 
 ### Refinement
 
-- `RefineMargin(xy, labels, samples = NULL, workers = NULL)`
+- `RefineMargin(xy, labels, samples = NULL, workers = NULL, transport = "standard")`
   Refines noisy labels on finite 2D/3D coordinates. `samples` defines fully
   independent coordinate systems, and `workers` is one deterministic total CPU
   budget.
 
-- `clean_categorical_mask(mask, samples = NULL, workers = NULL)`  
+- `clean_categorical_mask(mask, samples = NULL, workers = NULL, transport = "standard")`
   Cleans a categorical matrix (2D) or array (3D).
 
-- `RunFiberMargin(object, cluster.column = NULL, output.column = "FiberMargin_clusters", sample.column = NULL, workers = NULL, ...)`
+- `RunFiberMargin(object, cluster.column = NULL, output.column = "FiberMargin_clusters", sample.column = NULL, workers = NULL, ..., transport = "standard")`
   Reads coordinates and cluster assignments from Seurat, SpatialExperiment,
   or Giotto Suite and adds a new observation metadata column to the returned
   object. Use the matrix interface for diagnostics.
@@ -48,6 +48,8 @@ All simulators return a `spatial_refinement_benchmark` object with `xy`,
 - `samples`: optional integer, character, or factor identifiers. Coordinates and
   labels never cross sample boundaries, even when coordinate values overlap.
 - `workers`: `NULL` or one integer from 1 to 64 specifying the total CPU budget.
+- `transport`: `"standard"` (5 median path edges) or `"short"` (2.5).
+  Only multiclass repair uses this preset.
 
 Constant axes are removed separately in each sample. A constant `z` therefore
 uses the 2D operator, while a variable `z` uses the genuine 3D operator. Every

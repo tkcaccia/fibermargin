@@ -9,7 +9,8 @@ RunFiberMargin(
   output.column = "FiberMargin_clusters",
   sample.column = NULL,
   workers = NULL,
-  ...
+  ...,
+  transport = "standard"
 )
 }
 \arguments{
@@ -27,6 +28,7 @@ exactly once. With an explicit selection, unselected observations keep their
 input labels. For Giotto, \code{spat_unit}, \code{feat_type}, and \code{location}
 select the spatial unit, feature type and spatial-location layer; \code{NULL}
 uses Giotto's defaults.}
+\item{transport}{Multiclass transport preset passed to \code{\link{RefineMargin}()}.}
 }
 \description{
 Reads observation coordinates and existing labels, calls
