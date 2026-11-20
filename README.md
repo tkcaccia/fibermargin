@@ -242,6 +242,8 @@ CRC derivative is CC BY 4.0 and contains only coordinates, 19 author-derived reg
 corruption recipes; expression counts and tissue imagery are excluded. MERFISH
 inputs remain external. See
 `inst/extdata/REAL_DATA_LICENSES.md` for sources, attribution, and change notices.
+The [Benchmark data guide](https://tkcaccia.github.io/fibermargin/articles/benchmarks.html#benchmark-data)
+provides commands to download and prepare the study inputs.
 
 ```r
 crc <- load_spatial_benchmark(
