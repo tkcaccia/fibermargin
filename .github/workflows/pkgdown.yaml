@@ -25,6 +25,8 @@ jobs:
           use-public-rspm: true
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
+          # Optional Giotto examples are shown but not executed without GiottoClass.
+          dependencies: 'c("Depends", "Imports", "LinkingTo", "Suggests")'
           extra-packages: any::pkgdown, any::rmarkdown, any::knitr
           needs: website
       - name: Build pkgdown site

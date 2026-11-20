@@ -156,6 +156,9 @@ graphics::par(old_par)
 
 ## `RunFiberMargin()`
 
+For complete examples that construct each framework's object, see
+`vignette("spatial_objects", package = "fibermargin")`.
+
 Use the object wrapper when coordinates and clusters are already stored in an
 analysis object. It returns the same type of object and adds a factor column
 called `FiberMargin_clusters` by default. A different `output.column` can be

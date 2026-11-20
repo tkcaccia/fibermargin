@@ -31,6 +31,8 @@ jobs:
           use-public-rspm: true
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
+          # GiottoClass is an optional enhancement outside CRAN/Bioconductor.
+          dependencies: 'c("Depends", "Imports", "LinkingTo", "Suggests")'
           extra-packages: any::rcmdcheck
           needs: check
       - name: Check package as CRAN

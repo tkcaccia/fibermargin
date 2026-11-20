@@ -1,0 +1,167 @@
+---
+title: "Refine Clusters in Spatial Transcriptomics Objects"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Refine Clusters in Spatial Transcriptomics Objects}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+`RunFiberMargin()` refines an existing clustering stored in a Seurat,
+SpatialExperiment, or Giotto Suite object. It uses coordinates and cluster
+labels, not gene expression, images, or embedding coordinates. It returns the
+same type of object with a new metadata column, `FiberMargin_clusters` by
+default. The input cluster column and active Seurat identities are unchanged.
+
+## A reproducible example
+
+The examples below use the same two simulated tissue sections. The expression
+matrix is a placeholder required to construct the objects; FiberMargin never
+uses its values.
+
+```{r setup}
+library(fibermargin)
+
+sim <- simulate_gradient_regions(n = 480L, minority = 0.20,
+                                 samples = 2L, seed = 42L)
+xy <- sim$xy
+colnames(xy) <- c("x", "y")
+ids <- sprintf("spot%03d", seq_len(nrow(xy)))
+rownames(xy) <- ids
+metadata <- data.frame(clusters = sim$labels, sample_id = sim$samples,
+                       row.names = ids)
+counts <- matrix(1L, nrow = 2L, ncol = length(ids),
+                 dimnames = list(c("gene1", "gene2"), ids))
+
+refined <- RefineMargin(xy, metadata$clusters, metadata$sample_id, workers = 1L)
+data.frame(
+  initial_accuracy = mean(metadata$clusters == sim$truth),
+  refined_accuracy = mean(refined == sim$truth),
+  sites_changed = sum(attr(refined, "changed"))
+)
+```
+
+The simulated reference labels are used only to score the result. On a real
+specimen without a reference, the number of edits can be inspected, but it is
+not a measure of accuracy. The object examples below run when their optional
+framework packages are installed; the matrix example runs without them.
+
+```{r framework-availability, include=FALSE}
+have_spe <- requireNamespace("SpatialExperiment", quietly = TRUE) &&
+  requireNamespace("SummarizedExperiment", quietly = TRUE)
+have_seurat <- requireNamespace("Seurat", quietly = TRUE) &&
+  requireNamespace("SeuratObject", quietly = TRUE)
+have_giotto <- requireNamespace("GiottoClass", quietly = TRUE)
+```
+
+## SpatialExperiment
+
+Specify the column in `colData()` that contains the input labels.
+`RunFiberMargin()` takes coordinates from `spatialCoords()` and uses
+`sample_id` to keep the two sections independent. If the object stores three
+spatial columns, all varying axes are used.
+
+```{r spatialexperiment, eval=have_spe}
+spe <- SpatialExperiment::SpatialExperiment(
+  assays = list(counts = counts), spatialCoords = xy, colData = metadata
+)
+spe <- RunFiberMargin(spe, cluster.column = "clusters", workers = 1L)
+table(input = spe$clusters, refined = spe$FiberMargin_clusters)
+stopifnot(identical(as.character(spe$FiberMargin_clusters), as.character(refined)))
+```
+
+## Seurat
+
+By default the wrapper uses active identities. Set `cluster.column` to
+read a different metadata column. The coordinates are spot positions for
+Visium objects and cell centroids for fields of view. Each image is an
+independent coordinate system, even if different images have overlapping
+coordinate ranges.
+
+```{r seurat, eval=have_seurat}
+seu <- SeuratObject::CreateSeuratObject(
+  counts = methods::as(counts, "CsparseMatrix"), meta.data = metadata
+)
+SeuratObject::Idents(seu) <- "clusters"
+for (i in seq_along(unique(metadata$sample_id))) {
+  section <- unique(metadata$sample_id)[i]
+  keep <- metadata$sample_id == section
+  name <- paste0("section", i)
+  seu[[name]] <- SeuratObject::CreateFOV(
+    as.data.frame(xy[keep, , drop = FALSE]), type = "centroids",
+    assay = "RNA", key = paste0(name, "_")
+  )
+}
+
+initial_idents <- SeuratObject::Idents(seu)
+seu <- RunFiberMargin(seu, workers = 1L)
+table(input = initial_idents, refined = seu[[]]$FiberMargin_clusters)
+stopifnot(identical(initial_idents, SeuratObject::Idents(seu)),
+          identical(as.character(seu[[]]$FiberMargin_clusters), as.character(refined)))
+```
+
+To refine only one image, give its name and a different output column.
+The other observations retain their input labels in the new column.
+If two images contain the same cell IDs, select a non-overlapping set of
+images explicitly.
+
+```{r seurat-one-image, eval=have_seurat}
+seu <- RunFiberMargin(seu, cluster.column = "clusters", images = "section1",
+                      output.column = "section1_refined", workers = 1L)
+other <- metadata$sample_id != unique(metadata$sample_id)[1L]
+stopifnot(identical(seu[[]]$section1_refined[other], metadata$clusters[other]))
+```
+
+## Giotto Suite
+
+Specify a cell metadata column containing the existing clustering. The
+wrapper matches locations to metadata by cell ID, uses `sdimz` when it
+is present, and writes the result to the selected spatial unit and feature
+type. This example only constructs a small fixture. It does not need a
+Python-based Giotto workflow.
+
+```{r giotto, eval=have_giotto}
+locations <- data.frame(cell_ID = ids, sdimx = xy[, "x"], sdimy = xy[, "y"])
+cell_metadata <- data.frame(cell_ID = ids, clusters = metadata$clusters,
+                            sample_id = metadata$sample_id)
+gio <- (function() {
+  old <- options(giotto.use_conda = FALSE, giotto.no_python_warn = TRUE)
+  on.exit(options(old))
+  # The GiottoClass constructor may report a deprecation in its own internals.
+  suppressWarnings(GiottoClass::createGiottoObject(
+    expression = counts, spatial_locs = locations,
+    cell_metadata = cell_metadata, cores = 1L
+  ))
+})()
+gio <- RunFiberMargin(gio, cluster.column = "clusters", workers = 1L)
+gio_meta <- GiottoClass::getCellMetadata(gio, output = "data.table")
+table(input = gio_meta[["clusters"]], refined = gio_meta[["FiberMargin_clusters"]])
+stopifnot(identical(
+  as.character(gio_meta[["FiberMargin_clusters"]][match(ids, gio_meta[["cell_ID"]])]),
+  as.character(refined)
+))
+```
+
+For a Giotto object with multiple location layers, pass `location` and, where
+necessary, `spat_unit` or `feat_type`.
+
+## Before running on your data
+
+- **Keep coordinate systems separate.** Supply `sample.column` when specimen
+  identifiers are stored under a name other than `sample_id`. Use measured
+  z coordinates for a volume; do not encode separate slides as artificial z
+  values to join unrelated coordinate systems.
+- **Choose a new output column.** Existing metadata columns are never
+  overwritten. Reuse the original object or give a different `output.column`
+  for a second run.
+- **Inspect changes.** A label can disappear after refinement. For candidate
+  labels, repair margins, and per-specimen summaries, call `RefineMargin()`
+  with the same coordinates, assignments, and specimen identifiers.
+
+```{r diagnostics}
+attr(refined, "labels_changed")
+attr(refined, "removed_classes")
+```
+
+See `?RunFiberMargin` for the complete interface and `?RefineMargin` for the
+meaning of each diagnostic.

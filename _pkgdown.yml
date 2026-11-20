@@ -22,12 +22,15 @@ home:
 
 navbar:
   structure:
-    left: [intro, reference, benchmarks]
+    left: [intro, reference, spatial_objects, benchmarks]
     right: [search, github]
   components:
     intro:
       text: Get started
       href: index.html
+    spatial_objects:
+      text: Spatial objects
+      href: articles/spatial_objects.html
     benchmarks:
       text: Benchmarks
       href: articles/benchmarks.html

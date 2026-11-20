@@ -77,6 +77,8 @@ Seurat images are refined independently. Set `images` to select a subset.
 All three adapters use `sample_id` when present, unless you choose another
 `sample.column`. In Seurat this can split each image into independent
 specimens. See `?RunFiberMargin` for object-specific arguments.
+For runnable examples in all three frameworks, open
+`vignette("spatial_objects", package = "fibermargin")`.
 
 ### Parallel execution
 

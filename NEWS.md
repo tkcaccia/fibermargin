@@ -5,6 +5,8 @@
 - `RunFiberMargin()` refines an existing clustering in a Seurat, Giotto
   Suite, or SpatialExperiment object and stores the result in a new
   observation metadata column.
+- Added an installed vignette with runnable Seurat, SpatialExperiment, and
+  Giotto Suite examples.
 - Added a public API benchmark covering simulated 2D and 3D specimens and
   the bundled DLPFC and CRC data. No changes to native refinement or scoring.
 
