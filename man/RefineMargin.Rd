@@ -65,6 +65,8 @@ specimens retain all three axes.
 
 \code{refine_spatial_labels()} is a compatibility alias for \code{RefineMargin()}.
 For object-based workflows, see \code{\link{RunFiberMargin}()}.
+Changed sites are suggested edits, not verified errors. Review outputs on
+representative inputs before replacing the original labels.
 }
 \examples{
 sim <- simulate_gradient_regions(n = 2000, samples = 2)

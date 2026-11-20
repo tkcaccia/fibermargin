@@ -16,6 +16,8 @@
 #'
 #' `refine_spatial_labels()` is a compatibility alias for `RefineMargin()`.
 #' For object-based workflows, see [RunFiberMargin()].
+#' Changed sites are suggested edits, not verified errors. Review outputs on
+#' representative inputs before replacing the original labels.
 #'
 #' @param xy Numeric matrix with two or three spatial coordinates per row.
 #' @param labels Initial categorical assignment for every row of `xy`.

@@ -260,6 +260,31 @@ identical(
 attr(refined_gradient, "workers")
 ```
 
+## Review suggested edits
+
+Keep the original labels when you start using FiberMargin on a new type of
+field. To review proposed edits, inspect changed sites with the largest
+surplus above their admission threshold first:
+
+```{r review-suggested-edits}
+edit_rows <- which(attr(refined_gradient, "changed"))
+surplus <- attr(refined_gradient, "repair_margin")
+review_rows <- head(edit_rows[order(-surplus[edit_rows], edit_rows)], 10L)
+data.frame(
+  row = review_rows,
+  original = gradient$labels[review_rows],
+  proposed = refined_gradient[review_rows],
+  surplus = surplus[review_rows]
+)
+```
+
+This orders suggestions by their internal score, not by the probability that
+an edit is correct. Look at surrounding labels as well, particularly near
+boundaries and for small classes. When independent reference labels are
+available, use `evaluate_spatial_refinement()` on representative fields to
+check both corrections and damage before replacing labels. Retaining the
+initial field is a valid choice.
+
 ## Binary specialization
 
 With exactly two observed classes, the function uses the fixed local ballot

@@ -191,6 +191,12 @@ interval.
 `isolation` is the multiclass local-gap protection factor; it is one for the
 binary ballot.
 
+Treat changed sites as suggested edits, not verified errors. The method can
+change correct labels, particularly near boundaries or in small regions. On a
+new dataset, start by reviewing the original and proposed labels at changed
+sites. Use independent reference annotations, when available, to decide whether
+to apply edits at all.
+
 The following named summaries are also attached:
 
 ```r
