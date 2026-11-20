@@ -2,7 +2,7 @@
 title: "FiberMargin Benchmarks"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{benchmarks}
+  %\VignetteIndexEntry{FiberMargin Benchmarks}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -67,7 +67,7 @@ bench <- simulate_spatial_domains(
 benchmark_spatial_refiners(
   data = bench,
   methods = list(
-    FiberMargin = refine_spatial_labels,
+    FiberMargin = RefineMargin,
     InitialOnly = function(xy, labels, ...) labels
   ),
   include_initial = TRUE,

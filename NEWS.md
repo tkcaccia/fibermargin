@@ -1,3 +1,13 @@
+# fibermargin 0.2.4
+
+- Use `RefineMargin()` for coordinate-and-label refinement. The former
+  `refine_spatial_labels()` name remains an exact compatibility alias.
+- `RunFiberMargin()` refines an existing clustering in a Seurat, Giotto
+  Suite, or SpatialExperiment object and stores the result in a new
+  observation metadata column.
+- Added a public API benchmark covering simulated 2D and 3D specimens and
+  the bundled DLPFC and CRC data. No changes to native refinement or scoring.
+
 # fibermargin 0.2.3
 
 * Evaluate masks on the fixed reference/input footprint, rejecting missing

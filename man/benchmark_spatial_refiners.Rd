@@ -6,7 +6,7 @@
 \usage{
 benchmark_spatial_refiners(
   data,
-  methods = list(FiberMargin = refine_spatial_labels),
+  methods = list(FiberMargin = RefineMargin),
   include_initial = TRUE,
   seed = 1L,
   on_error = c("stop", "record")

@@ -2,7 +2,7 @@
 title: "FiberMargin Reference Manual"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{fibermargin_reference}
+  %\VignetteIndexEntry{FiberMargin Reference Manual}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -17,13 +17,18 @@ library(fibermargin)
 
 ### Refinement
 
-- `refine_spatial_labels(xy, labels, samples = NULL, workers = NULL)`  
+- `RefineMargin(xy, labels, samples = NULL, workers = NULL)`
   Refines noisy labels on finite 2D/3D coordinates. `samples` defines fully
   independent coordinate systems, and `workers` is one deterministic total CPU
   budget.
 
 - `clean_categorical_mask(mask, samples = NULL, workers = NULL)`  
   Cleans a categorical matrix (2D) or array (3D).
+
+- `RunFiberMargin(object, cluster.column = NULL, output.column = "FiberMargin_clusters", sample.column = NULL, workers = NULL, ...)`
+  Reads coordinates and cluster assignments from Seurat, SpatialExperiment,
+  or Giotto Suite and adds a new observation metadata column to the returned
+  object. Use the matrix interface for diagnostics.
 
 ### Simulation
 
@@ -36,7 +41,7 @@ library(fibermargin)
 All simulators return a `spatial_refinement_benchmark` object with `xy`,
 `labels`, `truth`, `samples`, and optional `boundary`/`sparse` fields.
 
-## `refine_spatial_labels()` contract
+## `RefineMargin()` contract
 
 - `xy`: a finite numeric matrix with exactly two or three columns.
 - `labels`: one non-missing categorical assignment per row.
@@ -61,8 +66,8 @@ set.seed(8)
 xy <- matrix(runif(1200), ncol = 2)
 labels <- factor(ifelse(xy[, 1] < 0.5, "left", "right"))
 
-refined_2d <- refine_spatial_labels(xy, labels, workers = 1L)
-refined_flat_3d <- refine_spatial_labels(
+refined_2d <- RefineMargin(xy, labels, workers = 1L)
+refined_flat_3d <- RefineMargin(
   cbind(xy, z = 0), labels, workers = 1L
 )
 stopifnot(identical(refined_2d, refined_flat_3d))
@@ -70,7 +75,7 @@ stopifnot(identical(refined_2d, refined_flat_3d))
 volume <- simulate_volumetric_domains(
   n = 1200L, shape = "folded_layers", samples = 2L, seed = 9L
 )
-refined_3d <- refine_spatial_labels(
+refined_3d <- RefineMargin(
   volume$xy, volume$labels, volume$samples, workers = 2L
 )
 attr(refined_3d, "dimensions_used")
@@ -78,7 +83,7 @@ attr(refined_3d, "dimensions_used")
 overlap_xy <- rbind(xy, xy)
 overlap_labels <- factor(rep(as.character(labels), 2L))
 specimen <- rep(c("first", "second"), each = nrow(xy))
-refined_joint <- refine_spatial_labels(
+refined_joint <- RefineMargin(
   overlap_xy, overlap_labels, specimen, workers = 2L
 )
 attr(refined_joint, "sample_sizes")

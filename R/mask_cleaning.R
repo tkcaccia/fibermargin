@@ -51,7 +51,7 @@ clean_categorical_mask <- function(mask, samples = NULL, workers = NULL) {
 
   coordinates <- arrayInd(which(keep), .dim = dimensions)
   colnames(coordinates) <- c("row", "column", "slice")[seq_len(ncol(coordinates))]
-  refined <- refine_spatial_labels(
+  refined <- RefineMargin(
     xy = coordinates,
     labels = mask[keep],
     samples = sample_values,

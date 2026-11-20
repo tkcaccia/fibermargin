@@ -34,7 +34,7 @@ sim <- simulate_gradient_regions(
   density_profile = "strong"
 )
 
-refined <- refine_spatial_labels(
+refined <- RefineMargin(
   xy = sim$xy,
   labels = sim$labels,
   samples = sim$samples
@@ -53,10 +53,37 @@ removed separately within each specimen. A specimen with columns `(x, y, z)`
 and constant `z` is therefore exactly equivalent to `(x, y)`, while genuinely
 three-dimensional specimens use all three coordinates.
 
+`RefineMargin()` is the current name of `refine_spatial_labels()`.
+The old name remains an alias for existing scripts.
+
+### Refine clusters in a spatial object
+
+```r
+# Seurat: use the active identities and the stored image coordinates.
+seurat_obj <- RunFiberMargin(seurat_obj, workers = 2L)
+seurat_obj[[]]$FiberMargin_clusters
+
+# SpatialExperiment: use the specified colData column and spatialCoords().
+spe <- RunFiberMargin(spe, cluster.column = "clusters", workers = 2L)
+spe$FiberMargin_clusters
+
+# Giotto Suite: use cell metadata and the selected spatial locations.
+giotto_obj <- RunFiberMargin(giotto_obj, cluster.column = "leiden_clus")
+```
+
+The wrapper adds a new metadata column and returns the same type of object.
+It does not overwrite the input clusters or change Seurat's active identities.
+Seurat images are refined independently. Set `images` to select a subset.
+All three adapters use `sample_id` when present, unless you choose another
+`sample.column`. In Seurat this can split each image into independent
+specimens. See `?RunFiberMargin` for object-specific arguments.
+
+### Parallel execution
+
 `workers` is the total native CPU budget for the call, not a budget per specimen:
 
 ```r
-refined <- refine_spatial_labels(xy, labels, samples, workers = 4)
+refined <- RefineMargin(xy, labels, samples, workers = 4)
 ```
 
 The explicit budget can be between 1 and 64 workers. It is reused as specimens
@@ -84,7 +111,7 @@ volume <- simulate_volumetric_domains(
   seed = 42
 )
 
-volume_refined <- refine_spatial_labels(
+volume_refined <- RefineMargin(
   volume$xy, volume$labels, volume$samples, workers = 4
 )
 attr(volume_refined, "dimensions_used")
@@ -98,7 +125,7 @@ xy <- rbind(xy_one, xy_one)
 samples <- rep(c("section_1", "section_2"), each = nrow(xy_one))
 labels <- factor(rep(sim$labels[sim$samples == levels(sim$samples)[1]], 2))
 
-joint <- refine_spatial_labels(xy, labels, samples, workers = 4)
+joint <- RefineMargin(xy, labels, samples, workers = 4)
 attr(joint, "sample_sizes")
 ```
 

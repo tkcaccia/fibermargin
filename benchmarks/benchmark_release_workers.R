@@ -2,7 +2,7 @@
 
 args <- commandArgs(trailingOnly = TRUE)
 output_dir <- if (length(args)) args[[1L]] else
-  file.path("benchmarks", "results", "release_0.1.0_worker_benchmark")
+  "fibermargin-worker-benchmark"
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
 library(fibermargin)
@@ -20,7 +20,7 @@ benchmark_data <- simulate_spatial_domains(
 run_once <- function(workers, repetition, measured = TRUE) {
   gc(verbose = FALSE)
   elapsed <- system.time({
-    refined <- refine_spatial_labels(
+    refined <- RefineMargin(
       benchmark_data$xy,
       benchmark_data$labels,
       benchmark_data$samples,
@@ -77,7 +77,7 @@ hardware <- c(
   sprintf("package_version: %s", as.character(packageVersion("fibermargin"))),
   sprintf("R_version: %s", R.version.string),
   sprintf("system: %s", paste(Sys.info()[c("sysname", "release", "machine")], collapse = " ")),
-  sprintf("cpu: %s", Sys.info()[["machine"]]),
+  sprintf("cpu_architecture: %s", Sys.info()[["machine"]]),
   sprintf("physical_cores_detected: %s", parallel::detectCores(logical = FALSE)),
   sprintf("logical_cores_detected: %s", parallel::detectCores(logical = TRUE)),
   "preprocessing_included: validation, specimen indexing, axis reduction, normalization, and all native refinement",

@@ -1,6 +1,6 @@
 #' Refine noisy categorical labels on a spatial domain
 #'
-#' `refine_spatial_labels()` applies FiberMargin to a coordinate-indexed label
+#' `RefineMargin()` applies FiberMargin to a coordinate-indexed label
 #' field. The function is deterministic: no training phase is run and all route
 #' constants are fixed internally. For multiclass data, each class receives a
 #' two-sided local evidence score from short directional neighborhood sweeps; in
@@ -13,6 +13,9 @@
 #' three-column specimen with constant `z` is processed identically to its
 #' two-column `(x, y)` representation, while genuinely three-dimensional
 #' specimens retain all three axes.
+#'
+#' `refine_spatial_labels()` is a compatibility alias for `RefineMargin()`.
+#' For object-based workflows, see [RunFiberMargin()].
 #'
 #' @param xy Numeric matrix with two or three spatial coordinates per row.
 #' @param labels Initial categorical assignment for every row of `xy`.
@@ -39,21 +42,26 @@
 #'   `workers`, these summaries are named by specimen; class summaries are named
 #'   lists. Class counts are not constrained, so `removed_classes` explicitly
 #'   records observed classes that disappear after refinement.
+#' @aliases refine_spatial_labels
 #' @export
 #' @examples
 #' sim <- simulate_gradient_regions(n = 2000, samples = 2)
-#' refined <- refine_spatial_labels(sim$xy, sim$labels, sim$samples)
+#' refined <- RefineMargin(sim$xy, sim$labels, sim$samples)
 #' mean(refined == sim$truth)
 #'
 #' # A constant z axis is removed within this specimen.
 #' xyz <- cbind(sim$xy, z = 0)
 #' stopifnot(identical(
-#'   refine_spatial_labels(xyz, sim$labels, sim$samples, workers = 1),
-#'   refine_spatial_labels(sim$xy, sim$labels, sim$samples, workers = 1)
+#'   RefineMargin(xyz, sim$labels, sim$samples, workers = 1),
+#'   RefineMargin(sim$xy, sim$labels, sim$samples, workers = 1)
 #' ))
-refine_spatial_labels <- function(xy, labels, samples = NULL, workers = NULL) {
+RefineMargin <- function(xy, labels, samples = NULL, workers = NULL) {
   .fiber_margin_engine(xy, labels, samples, workers = workers, control = list())
 }
+
+#' @rdname RefineMargin
+#' @export
+refine_spatial_labels <- RefineMargin
 
 .fiber_has_missing <- function(x) {
   anyNA(x) || (is.factor(x) && anyNA(levels(x)) && anyNA(as.character(x)))

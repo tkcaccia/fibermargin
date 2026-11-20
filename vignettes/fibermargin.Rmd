@@ -65,16 +65,17 @@ There are two fixed computational routes:
 - Binary fields use a distinct fixed nearest-neighbour ballot specialization.
 
 The package accepts irregular 2D or 3D coordinates through
-`refine_spatial_labels()` and regular pixel or voxel arrays through
+`RefineMargin()` and regular pixel or voxel arrays through
 `clean_categorical_mask()`. Multiple specimens can be supplied in one call and
 are always processed independently.
 
-The package exports 14 functions:
+The current interface is summarized below. The previous
+`refine_spatial_labels()` name remains a compatibility alias for `RefineMargin()`.
 
 ```{r api-index}
 api <- data.frame(
   Function = c(
-    "refine_spatial_labels", "clean_categorical_mask",
+    "RefineMargin", "RunFiberMargin", "clean_categorical_mask",
     "corrupt_categorical_mask", "evaluate_mask_cleaning",
     "spatial_benchmark", "evaluate_spatial_refinement",
     "benchmark_spatial_refiners", "simulate_spatial_clusters",
@@ -84,6 +85,7 @@ api <- data.frame(
   ),
   Purpose = c(
     "Refine labels at irregular 2D/3D coordinates",
+    "Refine an existing clustering in a spatial object",
     "Clean a categorical matrix or 3D array",
     "Generate reproducible mask errors",
     "Score a cleaned mask",
@@ -118,7 +120,7 @@ gradient <- simulate_gradient_regions(
   seed = 12L
 )
 
-refined_gradient <- refine_spatial_labels(
+refined_gradient <- RefineMargin(
   xy = gradient$xy,
   labels = gradient$labels,
   samples = gradient$samples,
@@ -152,10 +154,34 @@ graphics::par(old_par)
 
 # Refine irregular coordinates
 
-## `refine_spatial_labels()`
+## `RunFiberMargin()`
+
+Use the object wrapper when coordinates and clusters are already stored in an
+analysis object. It returns the same type of object and adds a factor column
+called `FiberMargin_clusters` by default. A different `output.column` can be
+specified; existing columns are never overwritten.
 
 ```r
-refine_spatial_labels(xy, labels, samples = NULL, workers = NULL)
+# Use active Seurat identities or specify cluster.column.
+seurat_obj <- RunFiberMargin(seurat_obj, images = "slice1")
+
+# Specify the existing cluster column for SpatialExperiment or Giotto Suite.
+spe <- RunFiberMargin(spe, cluster.column = "clusters")
+giotto_obj <- RunFiberMargin(giotto_obj, cluster.column = "leiden_clus")
+```
+
+For Seurat, each image has an independent coordinate system. When images
+share cell IDs, choose non-overlapping images explicitly. With an explicit
+selection, the input labels of unselected cells are copied unchanged.
+All three adapters use `sample_id` when present. Set `sample.column` to use
+a different metadata column. In Seurat this column can further split cells
+within each image. For Giotto objects with multiple spatial location
+layers, specify `location` along with `spat_unit` or `feat_type` if needed.
+
+## `RefineMargin()`
+
+```r
+RefineMargin(xy, labels, samples = NULL, workers = NULL)
 ```
 
 `xy` must be a finite numeric matrix with two or three columns. `labels` must
@@ -239,7 +265,7 @@ binary_data <- simulate_spatial_clusters(
   noise = 0.12,
   seed = 21L
 )
-binary_refined <- refine_spatial_labels(
+binary_refined <- RefineMargin(
   binary_data$xy, binary_data$labels,
   samples = binary_data$samples, workers = 1L
 )
@@ -260,10 +286,10 @@ A constant third axis is removed within the specimen, producing the same labels
 and every same pointwise diagnostic as the 2D call.
 
 ```{r constant-z}
-flat_2d <- refine_spatial_labels(
+flat_2d <- RefineMargin(
   gradient$xy, gradient$labels, gradient$samples, workers = 1L
 )
-flat_3d <- refine_spatial_labels(
+flat_3d <- RefineMargin(
   cbind(gradient$xy, z = 0), gradient$labels,
   gradient$samples, workers = 1L
 )
@@ -282,7 +308,7 @@ volume_example <- simulate_volumetric_domains(
   noise = 0.18,
   seed = 23L
 )
-volume_refined <- refine_spatial_labels(
+volume_refined <- RefineMargin(
   volume_example$xy, volume_example$labels,
   volume_example$samples, workers = 2L
 )
@@ -309,14 +335,14 @@ overlapping_labels <- factor(
 overlapping_samples <- rep(
   c("section_1", "section_2"), each = length(source_rows)
 )
-joint <- refine_spatial_labels(
+joint <- RefineMargin(
   overlapping_xy, overlapping_labels,
   samples = overlapping_samples, workers = 2L
 )
 
 separate <- unsplit(
   lapply(split(seq_len(nrow(overlapping_xy)), overlapping_samples), function(rows) {
-    refine_spatial_labels(
+    RefineMargin(
       overlapping_xy[rows, , drop = FALSE],
       overlapping_labels[rows],
       workers = 1L
@@ -336,10 +362,10 @@ standard C++ threads on macOS, Linux, and Windows. Changing `workers` changes
 execution only, not labels or diagnostics.
 
 ```{r worker-determinism, eval=FALSE}
-one_worker <- refine_spatial_labels(
+one_worker <- RefineMargin(
   gradient$xy, gradient$labels, gradient$samples, workers = 1L
 )
-four_workers <- refine_spatial_labels(
+four_workers <- RefineMargin(
   gradient$xy, gradient$labels, gradient$samples, workers = 4L
 )
 attr(one_worker, "workers") <- NULL
@@ -565,7 +591,7 @@ comparison <- benchmark_spatial_refiners(
   ),
   methods = list(
     FiberMargin = function(xy, labels, samples = NULL) {
-      refine_spatial_labels(xy, labels, samples, workers = 1L)
+      RefineMargin(xy, labels, samples, workers = 1L)
     },
     IdentityExample = function(xy, labels, ...) labels
   ),
@@ -753,7 +779,7 @@ Scenario identifiers are also accepted:
 crc_case <- load_spatial_benchmark(
   "crc", scenario = "CRC_random_25_r1", seed = 1040001L
 )
-crc_refined <- refine_spatial_labels(
+crc_refined <- RefineMargin(
   crc_case$xy, crc_case$labels,
   samples = crc_case$samples,
   workers = 4L
@@ -781,7 +807,7 @@ labels <- factor(my_data$annotation)
 samples <- factor(my_data$section_id)
 
 # Repair does not receive the reference labels.
-refined <- refine_spatial_labels(
+refined <- RefineMargin(
   xy = xy,
   labels = labels,
   samples = samples,

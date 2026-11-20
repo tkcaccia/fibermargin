@@ -10,6 +10,10 @@ mode <- match.arg(args[1L], c("prepare", "run", "compare", "geometry", "keys"))
 folder <- args[2L]
 if (mode %in% c("prepare", "run", "geometry")) {
   suppressPackageStartupMessages(library(fibermargin))
+  # Allow the same runner to audit releases predating the public rename.
+  api <- intersect(c("RefineMargin", "refine_spatial_labels"),
+                   getNamespaceExports("fibermargin"))
+  refine <- getExportedValue("fibermargin", api[[1L]])
 }
 
 if (mode == "prepare") {
@@ -88,7 +92,7 @@ if (mode == "prepare") {
     x <- design[i, ]
     d <- simulate_complex_spatial_domains(5000L, x$shape, x$density_profile,
       x$noise_type, samples = x$samples, seed = 3100000L + x$scenario)
-    refine_spatial_labels(d$xy, d$labels, d$samples, workers = 1L)
+    refine(d$xy, d$labels, d$samples, workers = 1L)
   })
   saveRDS(results, args[4L])
 } else {
@@ -98,7 +102,7 @@ if (mode == "prepare") {
   repeats <- as.integer(args[5L])
   stopifnot(repeats > 0L)
   data <- readRDS(file.path(folder, paste0(case, ".rds")))
-  run <- function() refine_spatial_labels(data$xy, data$labels, data$samples, workers)
+  run <- function() refine(data$xy, data$labels, data$samples, workers)
   gc(verbose = FALSE)
   result <- run()
   seconds <- vapply(seq_len(repeats), function(i) {

@@ -37,7 +37,8 @@ reference:
     desc: Minimal interfaces for regular masks and irregular spatial fields.
     contents:
       - clean_categorical_mask
-      - refine_spatial_labels
+      - RefineMargin
+      - RunFiberMargin
   - title: Mask Evaluation
     desc: Reproducible mask corruptions and damage-aware evaluation.
     contents:
