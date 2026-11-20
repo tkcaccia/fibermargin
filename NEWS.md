@@ -1,11 +1,9 @@
-# fibermargin 0.4.0
+# fibermargin 0.2.5
 
 - `FiberMargin()` is the single public entry point for coordinate-and-label
   refinement. This release removes the superseded function names. Inputs,
   results, diagnostics, and native computation are unchanged.
 - `RunFiberMargin()` remains the interface for spatial experiment objects.
-
-# fibermargin 0.3.0
 
 - The coordinate, spatial-object, and mask interfaces accept
   `transport = "short"` for multiclass repair at 2.5 median path

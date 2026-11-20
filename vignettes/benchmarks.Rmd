@@ -51,7 +51,7 @@ upstream access and attribution terms for each external input.
 
 ### Bundled CRC and DLPFC inputs
 
-Release 0.4.0 contains coordinate-and-label derivatives for colorectal
+Release 0.2.5 contains coordinate-and-label derivatives for colorectal
 cancer (CRC) Visium HD and human dorsolateral prefrontal cortex (DLPFC)
 Visium. The package does not include the original expression counts or
 images. To download and install the release used to replay the benchmarks,
@@ -62,7 +62,7 @@ if (!requireNamespace("Rcpp", quietly = TRUE)) install.packages("Rcpp")
 tarball <- tempfile(fileext = ".tar.gz")
 release <- paste0(
   "https://github.com/tkcaccia/fibermargin/releases/download/",
-  "v0.4.0/fibermargin_0.4.0.tar.gz"
+  "v0.2.5/fibermargin_0.2.5.tar.gz"
 )
 download.file(release, tarball, mode = "wb")
 install.packages(tarball, repos = NULL, type = "source")
